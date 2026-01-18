@@ -50,6 +50,7 @@ Navigate to the UI directory and install Node.js dependencies:
 cd ui
 npm install
 cd ..
+cp .env.example .env
 ```
 
 ### 4. Start the Service
