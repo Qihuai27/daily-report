@@ -15,5 +15,7 @@
       "label": "解决方法",
       "prompt": "请概括文章提出的核心解决方法（Methodology），简述其关键步骤或算法原理。"
     }
-  ]
+  ],
+  "keyword_last_queries": [],
+  "keyword_template_id": "title_abs_and"
 }

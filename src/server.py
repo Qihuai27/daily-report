@@ -215,6 +215,17 @@ class TaskManager:
         if len(self.logs) > 50:
             self.logs.pop(0)
 
+    def request_cancel(self, reason: str = "用户取消") -> bool:
+        if self.status != "busy":
+            return False
+        self.cancel_requested = True
+        self.cancel_reason = reason
+        self.update("正在取消任务...")
+        return True
+
+    def is_cancelled(self) -> bool:
+        return self.cancel_requested
+
 
 def _reset_dir(path: Path) -> int:
     count = 0
@@ -229,17 +240,6 @@ def _reset_dir(path: Path) -> int:
             logger.warning(f"目录清理失败: {path} ({e})")
     path.mkdir(parents=True, exist_ok=True)
     return count
-
-    def request_cancel(self, reason: str = "用户取消") -> bool:
-        if self.status != "busy":
-            return False
-        self.cancel_requested = True
-        self.cancel_reason = reason
-        self.update("正在取消任务...")
-        return True
-
-    def is_cancelled(self) -> bool:
-        return self.cancel_requested
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
