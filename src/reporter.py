@@ -125,6 +125,18 @@ def save_analysis_cache(paper: dict) -> None:
         return
 
 
+def delete_analysis_cache(arxiv_id: str) -> None:
+    """删除分析缓存（用于失败回滚）"""
+    if not arxiv_id:
+        return
+    path = _analysis_cache_path(arxiv_id)
+    try:
+        if path.exists():
+            path.unlink()
+    except Exception:
+        return
+
+
 def _parse_date_arg(value: str) -> str:
     try:
         return datetime.strptime(value, "%Y-%m-%d").strftime("%Y%m%d")
@@ -1035,7 +1047,10 @@ def analyze_paper(paper: dict, template: List[Dict[str, str]] = None) -> dict:
 
     # 保存到历史记录
     save_to_history(paper["arxiv_id"], "analyzed")
-    save_analysis_cache(paper)
+    if analysis:
+        save_analysis_cache(paper)
+    else:
+        delete_analysis_cache(paper["arxiv_id"])
 
     return paper
 

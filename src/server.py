@@ -4,6 +4,7 @@ import json
 import re
 import logging
 import asyncio
+import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -118,6 +119,20 @@ class ScheduleUpdate(BaseModel):
     max_results: Optional[int] = None
     use_llm: Optional[bool] = None
 
+
+class CacheClearRequest(BaseModel):
+    analysis: Optional[bool] = True
+    pdf: Optional[bool] = True
+    source: Optional[bool] = True
+
+
+class ArchiveClearRequest(BaseModel):
+    confirm: bool = False
+
+
+class ApiTestRequest(BaseModel):
+    provider: Optional[str] = None
+
 class TemplateItem(BaseModel):
     key: str
     label: str
@@ -199,6 +214,21 @@ class TaskManager:
         self.logs.append(f"[{timestamp}] {text}")
         if len(self.logs) > 50:
             self.logs.pop(0)
+
+
+def _reset_dir(path: Path) -> int:
+    count = 0
+    if path.exists():
+        try:
+            count = sum(1 for _ in path.iterdir())
+        except Exception:
+            count = 0
+        try:
+            shutil.rmtree(path)
+        except Exception as e:
+            logger.warning(f"目录清理失败: {path} ({e})")
+    path.mkdir(parents=True, exist_ok=True)
+    return count
 
     def request_cancel(self, reason: str = "用户取消") -> bool:
         if self.status != "busy":
@@ -712,6 +742,90 @@ def update_schedule(updates: ScheduleUpdate):
         config.DAILY_USE_LLM = updates.use_llm
     schedule_daily_job()
     return {"status": "success"}
+
+@app.post("/api/cache/clear")
+def clear_cache(req: CacheClearRequest):
+    if not (req.analysis or req.pdf or req.source):
+        raise HTTPException(status_code=400, detail="No cache types selected")
+
+    results = {}
+    if req.analysis:
+        results["analysis"] = _reset_dir(config.ANALYSIS_CACHE_DIR)
+    if req.pdf:
+        results["pdf"] = _reset_dir(config.LOGS_DIR / "pdf_cache")
+    if req.source:
+        results["source"] = _reset_dir(config.LOGS_DIR / "source_cache")
+
+    return {
+        "status": "success",
+        "cleared": results,
+        "paths": {
+            "analysis": str(config.ANALYSIS_CACHE_DIR),
+            "pdf": str(config.LOGS_DIR / "pdf_cache"),
+            "source": str(config.LOGS_DIR / "source_cache"),
+        },
+    }
+
+
+@app.post("/api/archive/clear")
+def clear_archive(req: ArchiveClearRequest):
+    if not req.confirm:
+        raise HTTPException(status_code=400, detail="Confirmation required")
+
+    results = {
+        "archive": _reset_dir(config.ARCHIVE_ROOT_DIR),
+        "papers": _reset_dir(config.PAPERS_DIR),
+        "notes": _reset_dir(config.BLOG_DIR),
+    }
+    return {
+        "status": "success",
+        "cleared": results,
+        "paths": {
+            "archive": str(config.ARCHIVE_ROOT_DIR),
+            "papers": str(config.PAPERS_DIR),
+            "notes": str(config.BLOG_DIR),
+        },
+    }
+
+
+@app.post("/api/llm/test")
+def test_llm(req: ApiTestRequest):
+    provider = (req.provider or config.LLM_PROVIDER or "").lower()
+    if not provider:
+        raise HTTPException(status_code=400, detail="Provider not configured")
+
+    if provider == "openai" and not config.OPENAI_API_KEY:
+        return JSONResponse(status_code=400, content={"ok": False, "provider": provider, "error": "OPENAI_API_KEY 未配置"})
+    if provider == "anthropic" and not config.ANTHROPIC_API_KEY:
+        return JSONResponse(status_code=400, content={"ok": False, "provider": provider, "error": "ANTHROPIC_API_KEY 未配置"})
+    if provider == "gemini" and not config.GEMINI_API_KEY:
+        return JSONResponse(status_code=400, content={"ok": False, "provider": provider, "error": "GEMINI_API_KEY 未配置"})
+    if provider == "ollama" and not config.OLLAMA_BASE_URL:
+        return JSONResponse(status_code=400, content={"ok": False, "provider": provider, "error": "OLLAMA_BASE_URL 未配置"})
+
+    prompt = "ping"
+    system_prompt = "Reply with OK."
+    try:
+        if provider == "openai":
+            response = reporter._call_openai(prompt, system_prompt)
+        elif provider == "anthropic":
+            response = reporter._call_anthropic(prompt, system_prompt)
+        elif provider == "gemini":
+            response = reporter._call_gemini(prompt, system_prompt)
+        elif provider == "ollama":
+            response = reporter._call_ollama(prompt, system_prompt)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "provider": provider, "error": str(e)})
+
+    return {
+        "ok": bool(response),
+        "provider": provider,
+        "response": (response or "").strip()[:200],
+    }
 
 @app.get("/api/template")
 def get_analysis_template():

@@ -230,7 +230,25 @@ const translations = {
     run_time: "运行时间",
     limit_label: "限制",
     auto_keywords: "自动关键词",
-    btn_save_schedule: "保存定时任务"
+    btn_save_schedule: "保存定时任务",
+
+    maintenance_title: "维护工具",
+    cache_cleanup_title: "缓存清理",
+    cache_cleanup_desc: "清理分析缓存、PDF 缓存和源码缓存。",
+    cache_analysis_label: "分析缓存",
+    cache_pdf_label: "PDF 缓存",
+    cache_source_label: "源码缓存",
+    btn_clear_cache: "清理缓存",
+    archive_cleanup_title: "归档清理",
+    archive_cleanup_desc: "清空本地归档 PDF 与笔记目录。",
+    btn_clear_archive: "清理归档",
+    api_test_title: "API 联通性测试",
+    api_test_desc: "测试当前 LLM Provider 是否可用。",
+    btn_test_api: "测试连通性",
+    api_test_ok: "连接成功",
+    api_test_fail: "连接失败",
+    confirm_clear_cache: "确定清理选中的缓存吗？",
+    confirm_clear_archive: "确定要清空归档目录吗？此操作不可恢复。"
   },
   en: {
     app_name: "Academic Flow",
@@ -335,7 +353,25 @@ const translations = {
     run_time: "Run Time",
     limit_label: "Limit",
     auto_keywords: "Auto Keywords",
-    btn_save_schedule: "Save Schedule"
+    btn_save_schedule: "Save Schedule",
+
+    maintenance_title: "Maintenance",
+    cache_cleanup_title: "Clear Caches",
+    cache_cleanup_desc: "Clear analysis, PDF, and source caches.",
+    cache_analysis_label: "Analysis cache",
+    cache_pdf_label: "PDF cache",
+    cache_source_label: "Source cache",
+    btn_clear_cache: "Clear Cache",
+    archive_cleanup_title: "Clear Archive",
+    archive_cleanup_desc: "Clear archived PDFs and notes.",
+    btn_clear_archive: "Clear Archive",
+    api_test_title: "API Connectivity Test",
+    api_test_desc: "Test current LLM provider connectivity.",
+    btn_test_api: "Test Connectivity",
+    api_test_ok: "Connection OK",
+    api_test_fail: "Connection Failed",
+    confirm_clear_cache: "Clear selected caches?",
+    confirm_clear_archive: "Clear archive directories? This cannot be undone."
   }
 };
 
@@ -1176,6 +1212,15 @@ function SettingsView({
     max_results: initialSchedule?.max_results ?? 30,
     use_llm: initialSchedule?.use_llm ?? true,
   });
+
+  const [cacheForm, setCacheForm] = useState({
+    analysis: true,
+    pdf: true,
+    source: true,
+  });
+  const [cacheBusy, setCacheBusy] = useState(false);
+  const [apiTestBusy, setApiTestBusy] = useState(false);
+  const [apiTestResult, setApiTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   
   // Template state
   const [templateForm, setTemplateForm] = useState<TemplateItem[]>(initialTemplate);
@@ -1226,6 +1271,44 @@ function SettingsView({
       await api.post('/template', { template: templateForm });
       onTemplateSave();
       alert("Template updated.");
+  };
+
+  const handleClearCache = async () => {
+    if (!window.confirm(t('confirm_clear_cache'))) return;
+    setCacheBusy(true);
+    try {
+      const res = await api.post('/cache/clear', cacheForm);
+      const cleared = res.data?.cleared || {};
+      alert(`${t('btn_clear_cache')} ✅\nanalysis: ${cleared.analysis ?? 0}\npdf: ${cleared.pdf ?? 0}\nsource: ${cleared.source ?? 0}`);
+    } finally {
+      setCacheBusy(false);
+    }
+  };
+
+  const handleClearArchive = async () => {
+    if (!window.confirm(t('confirm_clear_archive'))) return;
+    try {
+      await api.post('/archive/clear', { confirm: true });
+      alert(t('btn_clear_archive') + " ✅");
+    } catch (e) {
+      alert(t('btn_clear_archive') + " ❌");
+    }
+  };
+
+  const handleApiTest = async () => {
+    setApiTestBusy(true);
+    setApiTestResult(null);
+    try {
+      const res = await api.post('/llm/test', {});
+      const ok = Boolean(res.data?.ok);
+      const message = ok ? (res.data?.response || t('api_test_ok')) : (res.data?.error || t('api_test_fail'));
+      setApiTestResult({ ok, message });
+    } catch (e: any) {
+      const message = e?.response?.data?.error || t('api_test_fail');
+      setApiTestResult({ ok: false, message });
+    } finally {
+      setApiTestBusy(false);
+    }
   };
 
   // Template helpers
@@ -1666,6 +1749,97 @@ function SettingsView({
               </div>
           </section>
       </div>
+
+      {/* Maintenance Tools */}
+      <section className="bg-white rounded-3xl p-8 border border-zinc-200 shadow-sm">
+        <SectionTitle icon={<RefreshCw size={18} />} title={t('maintenance_title')} />
+        <div className="space-y-6">
+          <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50/50">
+            <div className="mb-3">
+              <h4 className="font-bold text-zinc-800">{t('cache_cleanup_title')}</h4>
+              <p className="text-xs text-zinc-500">{t('cache_cleanup_desc')}</p>
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={cacheForm.analysis}
+                  onChange={e => setCacheForm({ ...cacheForm, analysis: e.target.checked })}
+                  className="w-4 h-4 rounded border-zinc-300 accent-indigo-600"
+                />
+                {t('cache_analysis_label')}
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={cacheForm.pdf}
+                  onChange={e => setCacheForm({ ...cacheForm, pdf: e.target.checked })}
+                  className="w-4 h-4 rounded border-zinc-300 accent-indigo-600"
+                />
+                {t('cache_pdf_label')}
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={cacheForm.source}
+                  onChange={e => setCacheForm({ ...cacheForm, source: e.target.checked })}
+                  className="w-4 h-4 rounded border-zinc-300 accent-indigo-600"
+                />
+                {t('cache_source_label')}
+              </label>
+            </div>
+            <div className="pt-4">
+              <button
+                onClick={handleClearCache}
+                disabled={cacheBusy}
+                className="bg-zinc-900 text-white px-5 py-2 rounded-xl font-bold hover:bg-zinc-800 transition-all active:scale-[0.98] text-sm disabled:opacity-60"
+              >
+                {cacheBusy ? <Loader2 className="inline mr-2 animate-spin" size={16} /> : null}
+                {t('btn_clear_cache')}
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50/50">
+            <div className="mb-3">
+              <h4 className="font-bold text-zinc-800">{t('archive_cleanup_title')}</h4>
+              <p className="text-xs text-zinc-500">{t('archive_cleanup_desc')}</p>
+            </div>
+            <button
+              onClick={handleClearArchive}
+              className="bg-white border border-zinc-300 text-zinc-700 px-5 py-2 rounded-xl font-bold hover:bg-zinc-50 transition-all active:scale-[0.98] text-sm"
+            >
+              {t('btn_clear_archive')}
+            </button>
+          </div>
+
+          <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50/50">
+            <div className="mb-3">
+              <h4 className="font-bold text-zinc-800">{t('api_test_title')}</h4>
+              <p className="text-xs text-zinc-500">{t('api_test_desc')}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleApiTest}
+                disabled={apiTestBusy}
+                className="bg-white border border-zinc-300 text-zinc-700 px-5 py-2 rounded-xl font-bold hover:bg-zinc-50 transition-all active:scale-[0.98] text-sm disabled:opacity-60"
+              >
+                {apiTestBusy ? <Loader2 className="inline mr-2 animate-spin" size={16} /> : null}
+                {t('btn_test_api')}
+              </button>
+              {apiTestResult && (
+                <div className={`text-sm font-medium flex items-center gap-2 ${apiTestResult.ok ? 'text-green-700' : 'text-red-600'}`}>
+                  {apiTestResult.ok ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                  <span>{apiTestResult.ok ? t('api_test_ok') : t('api_test_fail')}</span>
+                </div>
+              )}
+            </div>
+            {apiTestResult?.message && (
+              <div className="mt-2 text-xs text-zinc-500 break-words">{apiTestResult.message}</div>
+            )}
+          </div>
+        </div>
+      </section>
 
     </div>
   );
