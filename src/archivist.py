@@ -23,18 +23,14 @@ from urllib.parse import urlparse
 import arxiv
 import requests
 
+import config as app_config
 from config import (
     ARCHIVE_ROOT_DIR,
     BLOG_DIR,
     HISTORY_FILE,
     INBOX_DIR,
     PAPERS_DIR,
-    ZOTERO_API_KEY,
-    ZOTERO_ATTACHMENT_MODE,
     ZOTERO_DEFAULT_COLLECTION,
-    ZOTERO_LINKED_DIR,
-    ZOTERO_LIBRARY_TYPE,
-    ZOTERO_USER_ID,
     logger,
 )
 
@@ -189,16 +185,23 @@ def guess_content_type(file_path: Path) -> str:
     return content_type or "application/pdf"
 
 
-def move_to_linked_dir(pdf_path: Path, linked_dir: Path) -> Path:
+def linked_archive_dir(linked_root: Path, date_str: Optional[str] = None) -> Path:
+    """Linked 附件归档目录: <linked_root>/daily-report/YYYY-MM-DD"""
+    date_str = date_str or datetime.now().strftime("%Y-%m-%d")
+    return linked_root / "daily-report" / date_str
+
+
+def move_to_linked_dir(pdf_path: Path, linked_root: Path, date_str: Optional[str] = None) -> Path:
     """将 PDF 移动到 Linked 附件目录"""
-    linked_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = linked_archive_dir(linked_root, date_str)
+    target_dir.mkdir(parents=True, exist_ok=True)
     try:
-        pdf_path.resolve().relative_to(linked_dir.resolve())
+        pdf_path.resolve().relative_to(target_dir.resolve())
         return pdf_path
     except ValueError:
         pass
 
-    target = linked_dir / pdf_path.name
+    target = target_dir / pdf_path.name
     if target.exists():
         logger.info(f"Linked 目录已存在同名文件，使用现有文件: {target}")
         return target
@@ -216,10 +219,15 @@ class ZoteroClient:
 
     BASE_URL = "https://api.zotero.org"
 
-    def __init__(self):
-        self.api_key = ZOTERO_API_KEY
-        self.user_id = ZOTERO_USER_ID
-        self.library_type = ZOTERO_LIBRARY_TYPE
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        user_id: Optional[str] = None,
+        library_type: Optional[str] = None,
+    ):
+        self.api_key = api_key if api_key is not None else app_config.ZOTERO_API_KEY
+        self.user_id = user_id if user_id is not None else app_config.ZOTERO_USER_ID
+        self.library_type = library_type if library_type is not None else app_config.ZOTERO_LIBRARY_TYPE
 
         if not self.api_key or not self.user_id:
             raise ValueError("请设置 ZOTERO_API_KEY 和 ZOTERO_USER_ID 环境变量")
@@ -493,14 +501,18 @@ def sync_to_zotero(
     linked_dir: Optional[Path] = None,
 ) -> list[str]:
     """同步论文到 Zotero"""
-    if not ZOTERO_API_KEY or not ZOTERO_USER_ID:
+    if not app_config.ZOTERO_API_KEY or not app_config.ZOTERO_USER_ID:
         logger.warning("Zotero API 未配置，跳过同步")
         return []
 
-    client = ZoteroClient()
+    client = ZoteroClient(
+        api_key=app_config.ZOTERO_API_KEY,
+        user_id=app_config.ZOTERO_USER_ID,
+        library_type=app_config.ZOTERO_LIBRARY_TYPE,
+    )
     synced_keys = []
-    mode_flags = attachment_mode_flags(attachment_mode or ZOTERO_ATTACHMENT_MODE)
-    linked_dir = linked_dir or (Path(ZOTERO_LINKED_DIR) if ZOTERO_LINKED_DIR else None)
+    mode_flags = attachment_mode_flags(attachment_mode or app_config.ZOTERO_ATTACHMENT_MODE)
+    linked_dir = linked_dir or (Path(app_config.ZOTERO_LINKED_DIR) if app_config.ZOTERO_LINKED_DIR else None)
     pdf_paths = pdf_paths or {}
 
     # 获取或创建收藏集
@@ -836,9 +848,9 @@ def main():
         print(f"  - {p['arxiv_id']}: {p['title_cn'][:40]}...")
 
     # 3. Zotero 同步
-    attachment_mode = normalize_attachment_mode(ZOTERO_ATTACHMENT_MODE)
+    attachment_mode = normalize_attachment_mode(app_config.ZOTERO_ATTACHMENT_MODE)
     mode_flags = attachment_mode_flags(attachment_mode)
-    linked_dir = Path(ZOTERO_LINKED_DIR) if ZOTERO_LINKED_DIR else None
+    linked_dir = Path(app_config.ZOTERO_LINKED_DIR) if app_config.ZOTERO_LINKED_DIR else None
 
     # 3. PDF 下载
     pdf_paths = {}

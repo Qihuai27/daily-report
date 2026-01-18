@@ -221,7 +221,7 @@ const translations = {
     zotero_attachment_both: "上传 + Linked",
     zotero_linked_dir: "Linked 附件目录",
     zotero_linked_dir_placeholder: "填写本地云盘目录绝对路径",
-    zotero_linked_dir_hint: "请填写你的 Zotero linked 文件夹路径（如 Dropbox/OneDrive）。",
+    zotero_linked_dir_hint: "填写云盘根目录，系统将创建 daily-report/日期 子目录。",
     btn_save_zotero: "保存 Zotero 配置",
     
     schedule_title: "每日定时任务",
@@ -326,7 +326,7 @@ const translations = {
     zotero_attachment_both: "Upload + Linked",
     zotero_linked_dir: "Linked Attachment Directory",
     zotero_linked_dir_placeholder: "Absolute path to your cloud-synced folder",
-    zotero_linked_dir_hint: "Fill in your Zotero linked folder path (e.g. Dropbox/OneDrive).",
+    zotero_linked_dir_hint: "Set your cloud root; it will create daily-report/YYYY-MM-DD.",
     btn_save_zotero: "Save Zotero Config",
     
     schedule_title: "Daily Schedule",
