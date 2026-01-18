@@ -50,6 +50,7 @@ pip install -r requirements.txt
 cd ui
 npm install
 cd ..
+cp .env.example .env
 ```
 
 ### 4. 启动服务
