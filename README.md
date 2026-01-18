@@ -23,6 +23,7 @@
 - **🤖 AI Analysis**: Utilizes LLMs to generate structured, insightful daily briefings.
 - **✅ Curated Archiving**: Review briefs and simply mark items to select them for your permanent collection.
 - **🔗 Seamless Sync**: Automatically syncs selected papers to Zotero, downloads PDFs, and creates Astro note stubs.
+- **🔗 Source Parsing**: Supports downloading and parsing ArXiv LaTeX source for more accurate full-text analysis.
 - **🖥️ Full Stack UI**: Includes a robust FastAPI backend and a modern Vite/React UI with a built-in scheduler.
 
 ## 🏗️ Architecture
@@ -39,76 +40,52 @@ graph LR
     D --> G[Notes content/blog/]
 ```
 
-*(Text-based fallback if mermaid is not supported)*
-```text
-ArXiv API ──> Reporter ──> _inbox/YYYY-MM-DD-Daily-Brief.md
-                                   │
-                                   │  (mark [ ] -> [x])
-                                   ▼
-                              Archivist
-                                   │
-                                   ├── Zotero items
-                                   ├── PDFs (public/papers/)
-                                   └── Notes (content/blog/)
+## 🚀 Quick Start Guide
+
+Follow these steps to deploy and start using the system from scratch.
+
+### 1. Environment Setup
+Create and activate a virtual environment (recommended):
+```bash
+conda create -n daily_report python=3.10
+conda activate daily_report
 ```
 
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.8+
-- Node.js 18+ (for UI)
-
-### ⚡ Minimal Setup (CLI Only)
-
-If you only want to use the command-line tools:
-
+### 2. Install Core Dependencies
+Install the required Python backend libraries:
 ```bash
-# 1. Install Python dependencies
 pip install -r requirements.txt
-
-# 2. Configure environment
-cp .env.example .env
-# (Edit .env with your API keys)
-
-# 3. Run the reporter
-python src/reporter.py
 ```
 
-### 📦 Full Installation (CLI + UI)
-
-#### 1. Install Dependencies
+### 3. Install Frontend Dependencies
+Navigate to the UI directory and install Node.js dependencies:
 ```bash
-# Backend
-pip install -r requirements.txt
-
-# Frontend
-cd ui && npm install
+cd ui
+npm install
+cd ..
 ```
 
-#### 2. Configure Environment
-Copy the example configuration and fill in your API keys:
-```bash
-cp .env.example .env
-```
-
-#### 3. Run the Pipeline
-```bash
-# Step A: Generate Briefing
-python src/reporter.py
-
-# Step B: Review & Archive
-# Open _inbox/YYYY-MM-DD-Daily-Brief.md and mark interesting papers with [x]
-python src/archivist.py
-```
-
-#### 4. Launch Full Application
-Run the unified server (Backend + Frontend):
+### 4. Start the Service
+Run the startup script from the root directory to launch both the backend API and the frontend interface:
 ```bash
 python app.py
 ```
-> **Access:**
-> - Backend: `http://localhost:8000`
-> - UI: `http://localhost:3000`
+> Once started, the browser should open automatically, or visit: `http://localhost:3000`
+
+### 5. Configuration
+Go to the **Settings** page and fill in your LLM API Key (e.g., OpenAI, Gemini) and Zotero configuration.
+
+![Configuration Page](figure/configreport.png)
+
+### 6. Start Analysis
+Return to the **Fetch** page (Intelligence Gathering), enter keywords for papers you are interested in (e.g., `LLM`, `Agent`), and click **Start Fetch Task**. The system will automatically search, download, and analyze papers with AI.
+
+### 7. Archive to Zotero
+After analysis, go to the **Briefs** page (Reading Room). Review the generated brief, check the boxes for papers you value, and click the **Sync to Zotero** button at the top. The system will sync metadata, PDFs, and notes to your Zotero library.
+
+![Briefing Page](figure/dailyreportexp.png)
+
+---
 
 ## ⚙️ Configuration
 
@@ -142,18 +119,6 @@ Set `LLM_PROVIDER` to one of: `openai`, `anthropic`, `gemini`, `ollama`.
 | `DAILY_QUERIES` | List of search queries |
 | `DAILY_MAX_RESULTS` | Max papers per fetch |
 
-### 📄 PDF Parsing (Optional)
-Controls how the system reads and processes PDF content.
-- `USE_PDF_FULLTEXT`, `PDF_BODY_MAX_PAGES`, `PDF_BODY_MAX_TOKENS`
-- `PDF_CACHE_TTL_DAYS`
-- `USE_ARXIV_SOURCE`
-
-## 🎨 Prompt Customization
-
-You can tailor the AI analysis to your needs:
-- **`prompts/`**: Contains system prompts and templates.
-- **`user_config.json`**: Controls specific analysis sections for each paper.
-
 ## 📂 Project Structure
 
 ```text
@@ -165,20 +130,6 @@ You can tailor the AI analysis to your needs:
 ├── _logs/               # 🪵 Logs & History
 ├── public/papers/       # 📄 Downloaded PDFs
 └── content/blog/        # 📓 Generated Note Stubs
-```
-
-## 🛠️ Development
-
-```bash
-# Run FastAPI Backend independently
-python src/server.py
-
-# Run Frontend Dev Server
-cd ui && npm run dev
-
-# Lint & Build Frontend
-cd ui && npm run lint
-cd ui && npm run build
 ```
 
 ## 📄 License

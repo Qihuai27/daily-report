@@ -66,20 +66,24 @@ interface Config {
   openai_model: string;
   openai_base_url: string;
   has_openai_key: boolean;
+  openai_api_key?: string;
   
   anthropic_model: string;
   anthropic_base_url: string;
   has_anthropic_key: boolean;
+  anthropic_api_key?: string;
   
   gemini_model: string;
   gemini_base_url: string;
   has_gemini_key: boolean;
+  gemini_api_key?: string;
 
   ollama_base_url: string;
   ollama_model: string;
   
   zotero_user_id: string;
   has_zotero_key: boolean;
+  zotero_api_key?: string;
   zotero_collection: string;
   search_queries: string[];
   use_pdf_fulltext: boolean;
@@ -384,7 +388,20 @@ function FetchView({ config, status }: { config: Config | null, status: Status }
                  <div className="space-y-3">
                    <div className="flex justify-between items-center">
                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">论文数量上限</label>
-                     <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{maxResults} 篇</span>
+                     <div className="flex items-center gap-1">
+                       <input 
+                         type="number" 
+                         min="1" 
+                         max="100" 
+                         value={maxResults}
+                         onChange={e => {
+                           const val = parseInt(e.target.value);
+                           if (!isNaN(val)) setMaxResults(Math.max(1, Math.min(100, val)));
+                         }}
+                         className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md w-12 text-center outline-none border border-transparent focus:border-indigo-200"
+                       />
+                       <span className="text-xs font-bold text-indigo-600">篇</span>
+                     </div>
                    </div>
                    <input 
                       type="range" min="1" max="100" value={maxResults} 

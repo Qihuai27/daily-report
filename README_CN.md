@@ -23,6 +23,7 @@
 - **🤖 AI 深度分析**：利用 LLM 生成结构化、有洞察力的每日简报。
 - **✅ 精选归档**：在简报中审阅并简单勾选，即可将论文加入永久收藏。
 - **🔗 无缝同步**：自动同步条目到 Zotero，下载 PDF 文件，并生成 Astro 笔记存根。
+- **🔗 源码解析**：支持下载 ArXiv LaTeX 源码并解析，获取更精准的全文内容。
 - **🖥️ 全栈交互**：内置强大的 FastAPI 后端与现代化的 Vite/React 前端界面，支持可视化调度。
 
 ## 🏗️ 系统架构
@@ -39,80 +40,56 @@ graph LR
     D --> G[Notes content/blog/]
 ```
 
-*(备用文本视图)*
-```text
-ArXiv API ──> Reporter ──> _inbox/YYYY-MM-DD-Daily-Brief.md
-                                   │
-                                   │  (把 [ ] 改成 [x])
-                                   ▼
-                              Archivist
-                                   │
-                                   ├── Zotero 条目
-                                   ├── PDFs (public/papers/)
-                                   └── 笔记 (content/blog/)
+## 🚀 快速使用指南
+
+以下步骤将帮助你从零开始部署并使用本系统。
+
+### 1. 环境准备
+推荐使用 Conda 创建独立的虚拟环境：
+```bash
+conda create -n daily_report python=3.10
+conda activate daily_report
 ```
 
-## 🚀 快速开始
-
-### 前置要求
-- Python 3.8+
-- Node.js 18+ (用于前端 UI)
-
-### ⚡ 极简运行 (仅命令行)
-
-如果你只需要使用命令行工具：
-
+### 2. 安装核心依赖
+下载 Python 后端所需的库：
 ```bash
-# 1. 安装 Python 依赖
 pip install -r requirements.txt
-
-# 2. 配置环境
-cp .env.example .env
-# (编辑 .env 填入你的 API Key)
-
-# 3. 运行简报生成器
-python src/reporter.py
 ```
 
-### 📦 完整安装 (CLI + UI)
-
-#### 1. 安装依赖
+### 3. 安装前端依赖
+进入 UI 目录并安装 Node.js 依赖：
 ```bash
-# 后端依赖
-pip install -r requirements.txt
-
-# 前端依赖
-cd ui && npm install
+cd ui
+npm install
+cd ..
 ```
 
-#### 2. 配置环境
-复制示例配置并填写 Key：
-```bash
-cp .env.example .env
-```
-
-#### 3. 运行工作流
-```bash
-# 步骤 A: 生成简报
-python src/reporter.py
-
-# 步骤 B: 审阅与归档
-# 打开 _inbox/YYYY-MM-DD-Daily-Brief.md 并勾选感兴趣的论文 [x]
-python src/archivist.py
-```
-
-#### 4. 启动完整应用
-启动统一服务（后端 + 前端）：
+### 4. 启动服务
+在项目根目录下运行启动脚本，将同时启动后端 API 和前端网页：
 ```bash
 python app.py
 ```
-> **访问地址：**
-> - 后端 API: `http://localhost:8000`
-> - 前端 UI: `http://localhost:3000`
+> 服务启动后，浏览器自动访问或手动打开: `http://localhost:3000`
 
-## ⚙️ 配置说明
+### 5. 填写配置
+进入「偏好设置」页面，填写你的 LLM API Key（如 OpenAI、Gemini 等）以及 Zotero 配置。
 
-系统所有配置均通过环境变量管理（自动加载 `.env`）。
+![配置页面](figure/configreport.png)
+
+### 6. 开始分析
+回到「情报抓取」页面，输入你感兴趣的论文关键词（如 `LLM`, `Agent`），点击**开始抓取任务**。系统将自动搜索、下载并进行 AI 分析。
+
+### 7. 归档到 Zotero
+分析完成后，进入「简报阅读室」。阅读生成的简报，勾选你认为有价值的论文，点击顶部的 **Sync to Zotero** 按钮。系统将自动把论文元数据、PDF 及笔记同步到你的 Zotero 库中。
+
+![简报页面](figure/dailyreportexp.png)
+
+---
+
+## ⚙️ 进阶配置说明
+
+系统所有配置均通过环境变量管理（自动加载 `.env`），也可在前端界面修改。
 
 ### 🧠 LLM 提供商配置
 设置 `LLM_PROVIDER` 为以下之一：`openai`, `anthropic`, `gemini`, `ollama`。
@@ -142,18 +119,6 @@ python app.py
 | `DAILY_QUERIES` | 搜索查询关键词列表 |
 | `DAILY_MAX_RESULTS` | 每次获取的最大论文数 |
 
-### 📄 PDF 解析 (可选)
-控制系统如何读取和处理 PDF 内容：
-- `USE_PDF_FULLTEXT`, `PDF_BODY_MAX_PAGES`, `PDF_BODY_MAX_TOKENS`
-- `PDF_CACHE_TTL_DAYS`
-- `USE_ARXIV_SOURCE`
-
-## 🎨 Prompt 定制
-
-你可以根据需求定制 AI 分析逻辑：
-- **`prompts/`**: 包含系统提示词和分析模板。
-- **`user_config.json`**: 自定义每篇论文分析输出的具体段落。
-
 ## 📂 目录结构
 
 ```text
@@ -165,20 +130,6 @@ python app.py
 ├── _logs/               # 🪵 日志与历史记录
 ├── public/papers/       # 📄 下载的 PDF 文件
 └── content/blog/        # 📓 生成的笔记存根
-```
-
-## 🛠️ 开发指南
-
-```bash
-# 独立运行 FastAPI 后端
-python src/server.py
-
-# 运行前端开发服务器
-cd ui && npm run dev
-
-# 前端代码检查与构建
-cd ui && npm run lint
-cd ui && npm run build
 ```
 
 ## 📄 License
