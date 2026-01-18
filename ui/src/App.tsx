@@ -25,7 +25,9 @@ import {
   RefreshCw,
   Github,
   Pencil,
-  XCircle
+  XCircle,
+  Globe,
+  Languages
 } from 'lucide-react';
 
 // --- API Helper ---
@@ -49,7 +51,7 @@ interface Paper {
   checked: boolean;
   score: number;
   tags: string[];
-  analysis: Record<string, string>; // Dynamic analysis content
+  analysis: Record<string, string>;
 }
 
 interface Status {
@@ -121,6 +123,188 @@ interface KeywordTemplate {
   desc?: string;
 }
 
+// --- Translations ---
+const translations = {
+  cn: {
+    app_name: "Academic Flow",
+    app_desc: "科研助手",
+    nav_fetch: "学术雷达",
+    nav_fetch_desc: "获取 & 分析",
+    nav_briefs: "简报阅读室",
+    nav_briefs_desc: "阅览 & 归档",
+    nav_settings: "偏好设置",
+    nav_settings_desc: "配置 & 管理",
+    status_idle: "系统就绪",
+    status_busy: "正在运行",
+    status_error: "发生错误",
+    status_waiting: "等待指令...",
+    
+    fetch_title: "学术雷达",
+    fetch_desc: "配置自定义搜索关键词，从 ArXiv 实时抓取并深度分析最新科研动态。",
+    keywords_title: "搜索关键词",
+    keywords_tip: "关键词以短语形式匹配，默认使用 AND 逻辑组合。",
+    keywords_placeholder: "输入关键词并回车...",
+    library_title: "关键词库",
+    library_tip: "点击加入 / 移除",
+    library_empty: "暂无关键词，请在上方新增",
+    params_title: "抓取参数",
+    template_label: "组合模板",
+    date_range_label: "时间范围",
+    date_start: "开始日期",
+    date_end: "结束日期",
+    date_tip: "默认不限制时间范围；可在此处设置起止日期。",
+    max_papers_label: "论文数量上限",
+    enable_llm_label: "启用 LLM 深度分析",
+    enable_llm_desc: "自动生成中文摘要、评分及结构化笔记",
+    ready_title: "准备就绪",
+    btn_start: "开始抓取任务",
+    btn_running: "正在运行...",
+    btn_cancel: "取消抓取任务",
+    btn_canceling: "正在取消...",
+    tips_title: "使用提示",
+    tips_1: "首次使用时，请前往偏好设置填写api-key，使用LLM分析抓取论文需要填写api，自动归档功能需要填写zetero key。",
+    tips_2: "抓取完成后，请前往「简报阅读室」查看。",
+    tips_3: "支持配置 Zotero 自动同步。",
+
+    history_title: "历史简报",
+    brief_items: "篇论文",
+    collection_label: "Collection",
+    btn_rename: "改名",
+    btn_delete: "删除",
+    btn_sync: "同步到 Zotero",
+    loading_analysis: "正在分析内容...",
+    empty_brief: "请从左侧列表选择一份简报以开始阅读",
+    
+    settings_title: "系统设置",
+    settings_desc: "管理 API 密钥、自动化规则及内容生成模板。",
+    provider_title: "模型服务 (LLM Provider)",
+    provider_desc: "选择并配置用于论文分析的大语言模型。",
+    provider_select: "选择服务商",
+    btn_save_llm: "保存 LLM 配置",
+    
+    strategy_title: "内容解析策略",
+    strategy_desc: "设置 PDF 下载与全文解析的规则。",
+    pdf_fulltext: "解析 PDF 全文",
+    pdf_fulltext_desc: "下载 PDF 文件并提取文本内容供 AI 分析，能获得更精准的细节。",
+    arxiv_source: "尝试源码解析",
+    arxiv_source_desc: "若 PDF 解析失败或内容不足，尝试下载 LaTeX 源码提取内容。",
+    pdf_cache: "PDF 缓存天数",
+    source_cache: "源码缓存天数",
+    max_pages: "最大页数",
+    token_budget: "Token 预算",
+    btn_update_strategy: "更新策略",
+    
+    template_title: "AI 分析模板",
+    template_desc: "自定义简报中 AI 输出的结构与 Prompt。",
+    btn_add_field: "添加新字段",
+    field_header: "显示标题",
+    field_key: "JSON Key",
+    field_prompt: "Prompt 指令",
+    btn_save_template: "保存模板设置",
+    
+    zotero_title: "Zotero 同步",
+    btn_save_zotero: "保存 Zotero 配置",
+    
+    schedule_title: "每日定时任务",
+    enable_schedule: "启用自动抓取",
+    enable_schedule_desc: "每天在指定时间自动运行",
+    run_time: "运行时间",
+    limit_label: "限制",
+    auto_keywords: "自动关键词",
+    btn_save_schedule: "保存定时任务"
+  },
+  en: {
+    app_name: "Academic Flow",
+    app_desc: "Research Assistant",
+    nav_fetch: "Academic Radar",
+    nav_fetch_desc: "Fetch & Analyze",
+    nav_briefs: "Library",
+    nav_briefs_desc: "Read & Archive",
+    nav_settings: "Settings",
+    nav_settings_desc: "Config & Tools",
+    status_idle: "System Ready",
+    status_busy: "Processing",
+    status_error: "Error Occurred",
+    status_waiting: "Waiting for command...",
+
+    fetch_title: "Academic Radar",
+    fetch_desc: "Configure keywords to fetch and analyze the latest research papers from ArXiv.",
+    keywords_title: "Search Keywords",
+    keywords_tip: "Match exact phrases. Default logic is AND.",
+    keywords_placeholder: "Enter keyword...",
+    library_title: "Keyword Library",
+    library_tip: "Click to add / remove",
+    library_empty: "No keywords yet.",
+    params_title: "Parameters",
+    template_label: "Templates",
+    date_range_label: "Date Range",
+    date_start: "Start Date",
+    date_end: "End Date",
+    date_tip: "Default is no limit. Set specific dates here.",
+    max_papers_label: "Max Papers",
+    enable_llm_label: "Enable LLM Analysis",
+    enable_llm_desc: "Auto-generate summaries, scores, and structured notes.",
+    ready_title: "Ready to Launch",
+    btn_start: "Start Fetching",
+    btn_running: "Running...",
+    btn_cancel: "Cancel Task",
+    btn_canceling: "Canceling...",
+    tips_title: "Usage Tips",
+    tips_1: "First time usage: Please go to Settings to configure API Keys. LLM analysis requires an LLM API Key, and auto-archiving requires a Zotero Key.",
+    tips_2: "Check 'Library' to view results after fetching.",
+    tips_3: "Supports Zotero synchronization.",
+
+    history_title: "History",
+    brief_items: "items",
+    collection_label: "Collection",
+    btn_rename: "Rename",
+    btn_delete: "Delete",
+    btn_sync: "Sync to Zotero",
+    loading_analysis: "Analysing content...",
+    empty_brief: "Select a brief from the list to start reading",
+
+    settings_title: "Settings",
+    settings_desc: "Manage API keys, automation rules, and analysis templates.",
+    provider_title: "LLM Provider",
+    provider_desc: "Choose and configure the LLM for paper analysis.",
+    provider_select: "Select Provider",
+    btn_save_llm: "Save LLM Config",
+    
+    strategy_title: "Content Strategy",
+    strategy_desc: "Rules for PDF downloading and parsing.",
+    pdf_fulltext: "Parse PDF Fulltext",
+    pdf_fulltext_desc: "Download PDF and extract text for better analysis.",
+    arxiv_source: "Try Source Parsing",
+    arxiv_source_desc: "Download LaTeX source if PDF parsing fails.",
+    pdf_cache: "PDF Cache (Days)",
+    source_cache: "Source Cache (Days)",
+    max_pages: "Max Pages",
+    token_budget: "Token Budget",
+    btn_update_strategy: "Update Strategy",
+    
+    template_title: "Analysis Template",
+    template_desc: "Customize the structure and prompts for AI analysis.",
+    btn_add_field: "Add Field",
+    field_header: "Display Header",
+    field_key: "JSON Key",
+    field_prompt: "Prompt Instruction",
+    btn_save_template: "Save Template",
+    
+    zotero_title: "Zotero Sync",
+    btn_save_zotero: "Save Zotero Config",
+    
+    schedule_title: "Daily Schedule",
+    enable_schedule: "Enable Auto-Fetch",
+    enable_schedule_desc: "Runs automatically at the specified time daily.",
+    run_time: "Run Time",
+    limit_label: "Limit",
+    auto_keywords: "Auto Keywords",
+    btn_save_schedule: "Save Schedule"
+  }
+};
+
+type Language = 'cn' | 'en';
+
 // --- Components ---
 
 export default function App() {
@@ -129,6 +313,9 @@ export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
   const [schedule, setSchedule] = useState<ScheduleConfig | null>(null);
   const [template, setTemplate] = useState<TemplateItem[]>([]);
+  const [lang, setLang] = useState<Language>('cn');
+
+  const t = (key: keyof typeof translations['cn']) => translations[lang][key] || key;
 
   // Poll status
   useEffect(() => {
@@ -155,16 +342,16 @@ export default function App() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 flex">
       {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-full w-72 bg-white/80 backdrop-blur-xl border-r border-zinc-200/60 p-6 flex flex-col shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)] z-50">
+      <div className="fixed left-0 top-0 h-full w-72 bg-white/80 backdrop-blur-xl border-r border-zinc-200/60 p-6 flex flex-col shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)] z-50 transition-all duration-300">
         <div className="flex items-center gap-3 mb-12 px-2">
-          <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-200">
+          <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-200 ring-1 ring-white/20">
             <Sparkles size={20} fill="currentColor" className="text-white/90" />
           </div>
           <div>
-            <h1 className="font-bold text-lg tracking-tight text-zinc-900">Academic Flow</h1>
-            <p className="text-[10px] text-zinc-400 font-medium tracking-wide uppercase">Research Assistant</p>
+            <h1 className="font-bold text-lg tracking-tight text-zinc-900">{t('app_name')}</h1>
+            <p className="text-[10px] text-zinc-400 font-medium tracking-wide uppercase">{t('app_desc')}</p>
           </div>
         </div>
 
@@ -173,24 +360,35 @@ export default function App() {
             active={activeTab === 'fetch'} 
             onClick={() => setActiveTab('fetch')}
             icon={<Search size={18} />}
-            label="情报抓取"
-            desc="Fetch & Analyze"
+            label={t('nav_fetch')}
+            desc={t('nav_fetch_desc')}
           />
           <NavItem 
             active={activeTab === 'briefs'} 
             onClick={() => setActiveTab('briefs')}
             icon={<BookOpen size={18} />}
-            label="简报阅读室"
-            desc="Library & Archive"
+            label={t('nav_briefs')}
+            desc={t('nav_briefs_desc')}
           />
           <NavItem 
             active={activeTab === 'settings'} 
             onClick={() => setActiveTab('settings')}
             icon={<Settings size={18} />}
-            label="偏好设置"
-            desc="Configuration"
+            label={t('nav_settings')}
+            desc={t('nav_settings_desc')}
           />
         </nav>
+
+        {/* Language Toggle */}
+        <div className="mb-6 px-2">
+          <button 
+            onClick={() => setLang(l => l === 'cn' ? 'en' : 'cn')}
+            className="flex items-center gap-2 text-xs font-bold text-zinc-400 hover:text-indigo-600 transition-colors"
+          >
+            <Globe size={14} />
+            <span>{lang === 'cn' ? 'English' : '中文'}</span>
+          </button>
+        </div>
 
         {/* Status indicator at bottom */}
         <div className="mt-auto">
@@ -210,10 +408,14 @@ export default function App() {
               <span className={`text-xs font-bold uppercase tracking-wider ${
                 status.status === 'busy' ? 'text-indigo-600' : 
                 status.status === 'error' ? 'text-red-600' : 'text-emerald-600'
-              }`}>{status.status === 'idle' ? 'System Ready' : status.status}</span>
+              }`}>{
+                status.status === 'idle' ? t('status_idle') : 
+                status.status === 'busy' ? t('status_busy') :
+                status.status === 'error' ? t('status_error') : status.status
+              }</span>
             </div>
             
-            <p className="text-xs text-zinc-500 line-clamp-2 h-8 leading-4">{status.message || "Waiting for command..."}</p>
+            <p className="text-xs text-zinc-500 line-clamp-2 h-8 leading-4">{status.message || t('status_waiting')}</p>
             
             {status.status === 'busy' && (
               <div className="mt-3 space-y-1.5">
@@ -231,9 +433,9 @@ export default function App() {
       </div>
 
       {/* Main Content */}
-      <main className="ml-72 p-8 lg:p-12 max-w-7xl mx-auto min-h-screen">
-        {activeTab === 'fetch' && <FetchView status={status} />}
-        {activeTab === 'briefs' && <BriefsView template={template} config={config} />}
+      <main className="flex-1 ml-72 p-8 lg:p-12 max-w-7xl mx-auto min-h-screen transition-all duration-300">
+        {activeTab === 'fetch' && <FetchView status={status} t={t} lang={lang} />}
+        {activeTab === 'briefs' && <BriefsView template={template} config={config} t={t} />}
         {activeTab === 'settings' && (
           <SettingsView
             initialConfig={config}
@@ -242,6 +444,7 @@ export default function App() {
             onSave={() => api.get('/config').then(res => setConfig(res.data))}
             onScheduleSave={() => api.get('/schedule').then(res => setSchedule(res.data))}
             onTemplateSave={() => api.get('/template').then(res => setTemplate(res.data.template))}
+            t={t}
           />
         )}
       </main>
@@ -259,12 +462,12 @@ function NavItem({ active, onClick, icon, label, desc }: { active: boolean, onCl
           : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
       }`}
     >
-      <div className={`${active ? 'text-indigo-300' : 'text-zinc-400 group-hover:text-zinc-600'}`}>
+      <div className={`${active ? 'text-indigo-300' : 'text-zinc-400 group-hover:text-zinc-600'} transition-colors`}>
         {icon}
       </div>
       <div>
-        <div className={`text-sm font-semibold ${active ? 'text-white' : 'text-zinc-700 group-hover:text-zinc-900'}`}>{label}</div>
-        <div className={`text-[10px] font-medium tracking-wide ${active ? 'text-zinc-400' : 'text-zinc-400 group-hover:text-zinc-500'}`}>{desc}</div>
+        <div className={`text-sm font-semibold ${active ? 'text-white' : 'text-zinc-700 group-hover:text-zinc-900'} transition-colors`}>{label}</div>
+        <div className={`text-[10px] font-medium tracking-wide ${active ? 'text-zinc-400' : 'text-zinc-400 group-hover:text-zinc-500'} transition-colors`}>{desc}</div>
       </div>
       {active && <ChevronRight size={14} className="ml-auto text-zinc-500" />}
     </button>
@@ -272,7 +475,7 @@ function NavItem({ active, onClick, icon, label, desc }: { active: boolean, onCl
 }
 
 // --- View: Fetch ---
-function FetchView({ status }: { status: Status }) {
+function FetchView({ status, t, lang }: { status: Status, t: any, lang: Language }) {
   const [queries, setQueries] = useState<string[]>([]);
   const [newQuery, setNewQuery] = useState("");
   const [maxResults, setMaxResults] = useState(10);
@@ -338,7 +541,7 @@ function FetchView({ status }: { status: Status }) {
         query_template_id: templateId || null
       });
     } catch (e) {
-      alert("启动任务失败，请检查后端服务是否运行");
+      alert("Error starting task. Please check backend.");
     }
   };
 
@@ -346,16 +549,20 @@ function FetchView({ status }: { status: Status }) {
     try {
       await api.post('/cancel');
     } catch (e) {
-      alert("取消任务失败，请检查任务状态");
+      alert("Error canceling task.");
     }
   };
 
+  const readyDesc = lang === 'cn' 
+    ? `将根据配置抓取 ${queries.length} 个关键词下的最新论文，预计处理上限为 ${maxResults} 篇。`
+    : `Will fetch papers for ${queries.length} keywords, with a limit of ${maxResults} papers.`;
+
   return (
     <div className="space-y-10 animate-slide-up">
-      <header className="max-w-2xl">
-        <h2 className="text-3xl font-bold tracking-tight text-zinc-900 mb-3">情报抓取中心</h2>
+      <header className="max-w-3xl">
+        <h2 className="text-3xl font-bold tracking-tight text-zinc-900 mb-3">{t('fetch_title')}</h2>
         <p className="text-zinc-500 text-lg leading-relaxed">
-          配置自定义搜索关键词，从 ArXiv 实时抓取并深度分析最新科研动态。
+          {t('fetch_desc')}
         </p>
       </header>
 
@@ -369,14 +576,14 @@ function FetchView({ status }: { status: Status }) {
               <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                 <Layers size={20} />
               </div>
-              <h3 className="font-bold text-lg text-zinc-800">搜索关键词</h3>
+              <h3 className="font-bold text-lg text-zinc-800">{t('keywords_title')}</h3>
             </div>
 
-            <p className="text-xs text-zinc-400 mb-4">关键词以短语形式匹配，默认使用 AND 逻辑组合。</p>
+            <p className="text-xs text-zinc-400 mb-4">{t('keywords_tip')}</p>
             
             <div className="flex flex-wrap gap-2.5 mb-6 min-h-[80px] content-start bg-zinc-50/50 p-4 rounded-xl border border-zinc-100/50">
               {queries.map((q, i) => (
-                <span key={i} className="pl-3 pr-2 py-1.5 bg-white border border-zinc-200 text-zinc-700 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm group">
+                <span key={i} className="pl-3 pr-2 py-1.5 bg-white border border-zinc-200 text-zinc-700 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm group animate-fade-in">
                   {q}
                   <button onClick={() => setQueries(queries.filter((_, idx) => idx !== i))} className="text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded p-0.5 transition-colors">
                     <Trash2 size={12} />
@@ -389,7 +596,7 @@ function FetchView({ status }: { status: Status }) {
                   value={newQuery}
                   onChange={e => setNewQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addQuery(newQuery)}
-                  placeholder="输入关键词并回车..."
+                  placeholder={t('keywords_placeholder')}
                   className="pl-9 pr-3 py-1.5 bg-transparent border-b-2 border-zinc-200 focus:border-indigo-500 outline-none text-sm w-40 focus:w-64 transition-all text-zinc-700 placeholder:text-zinc-400"
                 />
               </div>
@@ -397,12 +604,12 @@ function FetchView({ status }: { status: Status }) {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">关键词库</h4>
-                <span className="text-[10px] text-zinc-400">点击加入 / 移除</span>
+                <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('library_title')}</h4>
+                <span className="text-[10px] text-zinc-400">{t('library_tip')}</span>
               </div>
               <div className="flex flex-wrap gap-2 min-h-[44px]">
                 {keywordLibrary.length === 0 && (
-                  <span className="text-xs text-zinc-400">暂无关键词，请在上方新增</span>
+                  <span className="text-xs text-zinc-400">{t('library_empty')}</span>
                 )}
                 {keywordLibrary.map(kw => {
                   const active = queries.includes(kw);
@@ -430,13 +637,13 @@ function FetchView({ status }: { status: Status }) {
               <div className="p-2 bg-violet-50 text-violet-600 rounded-lg">
                 <Settings size={20} />
               </div>
-              <h3 className="font-bold text-lg text-zinc-800">抓取参数</h3>
+              <h3 className="font-bold text-lg text-zinc-800">{t('params_title')}</h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Keyword Template */}
               <div className="md:col-span-2 space-y-3">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">组合模板</label>
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('template_label')}</label>
                 <div className="flex flex-col md:flex-row md:items-center gap-3">
                   <select
                     value={templateId}
@@ -456,11 +663,11 @@ function FetchView({ status }: { status: Status }) {
                {/* Date Range */}
                <div className="space-y-4">
                 <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                  <Calendar size={14} /> 时间范围
+                  <Calendar size={14} /> {t('date_range_label')}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <span className="text-[10px] text-zinc-400 font-medium ml-1">START DATE</span>
+                    <span className="text-[10px] text-zinc-400 font-medium ml-1 uppercase">{t('date_start')}</span>
                     <input
                       type="date"
                       value={dateFrom}
@@ -469,7 +676,7 @@ function FetchView({ status }: { status: Status }) {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <span className="text-[10px] text-zinc-400 font-medium ml-1">END DATE</span>
+                    <span className="text-[10px] text-zinc-400 font-medium ml-1 uppercase">{t('date_end')}</span>
                     <input
                       type="date"
                       value={dateTo}
@@ -478,14 +685,14 @@ function FetchView({ status }: { status: Status }) {
                     />
                   </div>
                 </div>
-                <p className="text-[11px] text-zinc-400">默认不限制时间范围；可在此处设置起止日期。</p>
+                <p className="text-[11px] text-zinc-400">{t('date_tip')}</p>
               </div>
 
                {/* Limits & AI */}
                <div className="space-y-6">
                  <div className="space-y-3">
                    <div className="flex justify-between items-center">
-                     <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">论文数量上限</label>
+                     <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('max_papers_label')}</label>
                      <div className="flex items-center gap-1">
                        <input 
                          type="number" 
@@ -498,7 +705,6 @@ function FetchView({ status }: { status: Status }) {
                          }}
                          className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md w-12 text-center outline-none border border-transparent focus:border-indigo-200"
                        />
-                       <span className="text-xs font-bold text-indigo-600">篇</span>
                      </div>
                    </div>
                    <input 
@@ -510,8 +716,8 @@ function FetchView({ status }: { status: Status }) {
 
                  <div className="flex items-center justify-between p-3 border border-zinc-100 rounded-xl bg-zinc-50/50">
                     <div>
-                      <label className="text-sm font-bold text-zinc-700">启用 LLM 深度分析</label>
-                      <p className="text-xs text-zinc-400 mt-0.5">自动生成中文摘要、评分及结构化笔记</p>
+                      <label className="text-sm font-bold text-zinc-700">{t('enable_llm_label')}</label>
+                      <p className="text-xs text-zinc-400 mt-0.5">{t('enable_llm_desc')}</p>
                     </div>
                     <div className="relative inline-block w-11 h-6 align-middle select-none transition duration-200 ease-in">
                         <input 
@@ -533,26 +739,27 @@ function FetchView({ status }: { status: Status }) {
         {/* Right Column: Action */}
         <div className="lg:col-span-1">
           <div className="sticky top-8">
-            <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 rounded-3xl p-8 text-white shadow-xl shadow-zinc-200 flex flex-col items-center text-center h-full border border-zinc-700/50">
-              <div className="mb-6 p-4 bg-white/10 rounded-full backdrop-blur-sm">
+            <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 rounded-3xl p-8 text-white shadow-xl shadow-zinc-200 flex flex-col items-center text-center h-full border border-zinc-700/50 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-20 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+              <div className="mb-6 p-4 bg-white/10 rounded-full backdrop-blur-sm shadow-inner relative z-10">
                 <Play size={32} fill="currentColor" className="text-white" />
               </div>
-              <h3 className="text-2xl font-bold mb-2">准备就绪</h3>
-              <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-                将根据配置抓取 {queries.length} 个关键词下的最新论文，预计处理上限为 {maxResults} 篇。
+              <h3 className="text-2xl font-bold mb-2 relative z-10">{t('ready_title')}</h3>
+              <p className="text-zinc-400 text-sm mb-8 leading-relaxed relative z-10">
+                {readyDesc}
               </p>
               
               <button 
                 onClick={handleStart}
                 disabled={status.status === 'busy'}
-                className="w-full py-4 bg-white text-zinc-900 rounded-xl font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-black/20 flex items-center justify-center gap-2"
+                className="w-full py-4 bg-white text-zinc-900 rounded-xl font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-black/20 flex items-center justify-center gap-2 relative z-10"
               >
                  {status.status === 'busy' ? (
                    <>
-                    <Loader2 className="animate-spin" /> 正在运行...
+                    <Loader2 className="animate-spin" /> {t('btn_running')}
                    </>
                  ) : (
-                   <>开始抓取任务</>
+                   <>{t('btn_start')}</>
                  )}
               </button>
 
@@ -560,19 +767,19 @@ function FetchView({ status }: { status: Status }) {
                 <button
                   onClick={handleCancel}
                   disabled={status.cancel_requested}
-                  className="mt-3 w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider border border-red-200 text-red-600 bg-white/10 hover:bg-red-50 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="mt-3 w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider border border-red-200 text-red-600 bg-white/10 hover:bg-red-50 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed relative z-10"
                 >
-                  <XCircle size={16} /> {status.cancel_requested ? '正在取消...' : '取消抓取任务'}
+                  <XCircle size={16} /> {status.cancel_requested ? t('btn_canceling') : t('btn_cancel')}
                 </button>
               )}
             </div>
             
             <div className="mt-6 bg-white/50 border border-zinc-200 rounded-2xl p-6 backdrop-blur-sm">
-               <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">使用提示</h4>
+               <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">{t('tips_title')}</h4>
                <ul className="text-sm text-zinc-600 space-y-2 list-disc pl-4">
-                 <li>首次运行会自动下载相关模型配置。</li>
-                 <li>抓取完成后，请前往「简报阅读室」查看。</li>
-                 <li>支持配置 Zotero 自动同步。</li>
+                 <li>{t('tips_1')}</li>
+                 <li>{t('tips_2')}</li>
+                 <li>{t('tips_3')}</li>
                </ul>
             </div>
           </div>
@@ -583,7 +790,7 @@ function FetchView({ status }: { status: Status }) {
 }
 
 // --- View: Briefs ---
-function BriefsView({ template, config }: { template: TemplateItem[]; config: Config | null }) {
+function BriefsView({ template, config, t }: { template: TemplateItem[]; config: Config | null, t: any }) {
   const [briefs, setBriefs] = useState<Brief[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [detail, setDetail] = useState<{header: string, papers: Paper[]} | null>(null);
@@ -630,12 +837,12 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
   const startArchive = async () => {
     if(!selectedFile) return;
     await api.post('/archive', { filename: selectedFile, collection: collection || undefined });
-    alert("归档任务已提交！请关注左下角任务状态。");
+    alert("Archive task submitted!");
   };
 
   const renameBrief = async () => {
     if (!selectedFile) return;
-    const nextName = window.prompt("输入新的简报文件名", selectedFile);
+    const nextName = window.prompt("New name", selectedFile);
     if (!nextName || nextName.trim() === selectedFile) return;
     try {
       const res = await api.post(`/briefs/${selectedFile}/rename`, { new_name: nextName.trim() });
@@ -643,13 +850,13 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
       await refreshBriefs();
       await loadDetail(newFile);
     } catch (e) {
-      alert("改名失败，请检查是否重名或权限不足。");
+      alert("Rename failed.");
     }
   };
 
   const deleteBrief = async () => {
     if (!selectedFile) return;
-    const ok = window.confirm(`确认删除简报：${selectedFile}？`);
+    const ok = window.confirm(`Delete ${selectedFile}?`);
     if (!ok) return;
     try {
       await api.delete(`/briefs/${selectedFile}`);
@@ -657,7 +864,7 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
       setSelectedFile(null);
       setDetail(null);
     } catch (e) {
-      alert("删除失败，请检查后端服务或权限。");
+      alert("Delete failed.");
     }
   };
 
@@ -667,7 +874,7 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
       <div className="lg:col-span-3 flex flex-col h-full">
          <div className="flex items-center gap-2 mb-4 px-1">
             <BookOpen size={20} className="text-zinc-400" />
-            <h2 className="text-xl font-bold text-zinc-800">历史简报</h2>
+            <h2 className="text-xl font-bold text-zinc-800">{t('history_title')}</h2>
          </div>
          <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
           {briefs.map(b => (
@@ -701,12 +908,12 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
               <div>
                 <h3 className="font-bold text-zinc-900 text-lg flex items-center gap-2">
                   {selectedFile}
-                  <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 text-xs font-medium">{detail?.papers.length || 0} items</span>
+                  <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 text-xs font-medium">{detail?.papers.length || 0} {t('brief_items')}</span>
                 </h3>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-1.5">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Collection</span>
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{t('collection_label')}</span>
                   <input
                     value={collection}
                     onChange={e => setCollection(e.target.value)}
@@ -718,19 +925,19 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
                   onClick={renameBrief}
                   className="bg-white border border-zinc-200 text-zinc-600 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-2 transition-all hover:border-zinc-300 hover:text-zinc-800 active:scale-95"
                 >
-                  <Pencil size={14} /> 改名
+                  <Pencil size={14} /> {t('btn_rename')}
                 </button>
                 <button
                   onClick={deleteBrief}
                   className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-2 transition-all hover:border-red-300 hover:text-red-700 active:scale-95"
                 >
-                  <Trash2 size={14} /> 删除
+                  <Trash2 size={14} /> {t('btn_delete')}
                 </button>
                 <button 
                   onClick={startArchive}
                   className="bg-zinc-900 hover:bg-zinc-800 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-2 transition-all shadow-md active:scale-95"
                 >
-                  <Archive size={14} /> Sync to Zotero
+                  <Archive size={14} /> {t('btn_sync')}
                 </button>
               </div>
             </div>
@@ -740,7 +947,7 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
               {loading ? (
                 <div className="flex flex-col items-center justify-center h-full text-zinc-400 gap-4">
                   <Loader2 className="animate-spin text-indigo-500" size={32} />
-                  <span className="text-sm font-medium animate-pulse">Analysing content...</span>
+                  <span className="text-sm font-medium animate-pulse">{t('loading_analysis')}</span>
                 </div>
               ) : (
                 detail?.papers.map((p, idx) => (
@@ -832,7 +1039,7 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
             <div className="bg-zinc-50 p-6 rounded-full">
               <BookOpen size={48} strokeWidth={1} />
             </div>
-            <p className="text-sm font-medium text-zinc-400">请从左侧列表选择一份简报以开始阅读</p>
+            <p className="text-sm font-medium text-zinc-400">{t('empty_brief')}</p>
           </div>
         )}
       </div>
@@ -847,14 +1054,16 @@ function SettingsView({
   initialTemplate,
   onSave,
   onScheduleSave,
-  onTemplateSave
+  onTemplateSave,
+  t
 }: {
   initialConfig: Config | null,
   initialSchedule: ScheduleConfig | null,
   initialTemplate: TemplateItem[],
   onSave: () => void,
   onScheduleSave: () => void,
-  onTemplateSave: () => void
+  onTemplateSave: () => void,
+  t: any
 }) {
   const [form, setForm] = useState<Partial<Config>>({});
   
@@ -921,7 +1130,7 @@ function SettingsView({
   const handleSave = async () => {
     await api.post('/config', form);
     onSave();
-    alert("系统配置已保存");
+    alert("System config saved.");
   };
 
   const handlePdfSave = async () => {
@@ -934,24 +1143,24 @@ function SettingsView({
       arxiv_source_ttl_days: form.arxiv_source_ttl_days,
     });
     onSave();
-    alert("PDF 处理策略已更新");
+    alert("Strategy updated.");
   };
 
   const handleScheduleSave = async () => {
     const queries = scheduleForm.queries.split(",").map(q => q.trim()).filter(Boolean);
     await api.post('/schedule', { ...scheduleForm, queries });
     onScheduleSave();
-    alert("自动调度任务已更新");
+    alert("Schedule updated.");
   };
   
   const handleTemplateSave = async () => {
       await api.post('/template', { template: templateForm });
       onTemplateSave();
-      alert("分析模板已更新");
+      alert("Template updated.");
   };
 
   // Template helpers
-  const addTemplateItem = () => setTemplateForm([...templateForm, { key: `field_${Date.now()}`, label: "新分析点", prompt: "" }]);
+  const addTemplateItem = () => setTemplateForm([...templateForm, { key: `field_${Date.now()}`, label: "New Field", prompt: "" }]);
   const removeTemplateItem = (index: number) => {
       const next = [...templateForm]; next.splice(index, 1); setTemplateForm(next);
   };
@@ -978,18 +1187,18 @@ function SettingsView({
   return (
     <div className="max-w-4xl mx-auto space-y-10 pb-20 animate-slide-up">
       <header>
-        <h2 className="text-3xl font-bold tracking-tight text-zinc-900 mb-2">系统设置</h2>
-        <p className="text-zinc-500 text-lg">管理 API 密钥、自动化规则及内容生成模板。</p>
+        <h2 className="text-3xl font-bold tracking-tight text-zinc-900 mb-2">{t('settings_title')}</h2>
+        <p className="text-zinc-500 text-lg">{t('settings_desc')}</p>
       </header>
 
       {/* LLM Config */}
       <section className="bg-white rounded-3xl p-8 border border-zinc-200 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 p-32 bg-indigo-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-        <SectionTitle icon={<Cpu size={18} />} title="模型服务 (LLM Provider)" desc="选择并配置用于论文分析的大语言模型。" />
+        <SectionTitle icon={<Cpu size={18} />} title={t('provider_title')} desc={t('provider_desc')} />
         
         <div className="space-y-6 relative z-10">
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">选择服务商</label>
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('provider_select')}</label>
             <div className="flex gap-4">
               {['openai', 'anthropic', 'gemini', 'ollama'].map(p => (
                 <label key={p} className={`flex-1 cursor-pointer border rounded-xl p-4 flex flex-col items-center gap-2 transition-all ${
@@ -1133,7 +1342,7 @@ function SettingsView({
                 onClick={handleSave}
                 className="bg-zinc-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-zinc-800 transition-all active:scale-[0.98] text-sm shadow-lg shadow-zinc-200"
             >
-                保存 LLM 配置
+                {t('btn_save_llm')}
             </button>
           </div>
         </div>
@@ -1141,7 +1350,7 @@ function SettingsView({
 
       {/* PDF & Source Config */}
       <section className="bg-white rounded-3xl p-8 border border-zinc-200 shadow-sm">
-        <SectionTitle icon={<FileText size={18} />} title="内容解析策略" desc="设置 PDF 下载与全文解析的规则。" />
+        <SectionTitle icon={<FileText size={18} />} title={t('strategy_title')} desc={t('strategy_desc')} />
         
         <div className="space-y-6">
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1153,9 +1362,9 @@ function SettingsView({
                     onChange={e => setForm({ ...form, use_pdf_fulltext: e.target.checked })}
                     className="w-5 h-5 rounded border-zinc-300 accent-indigo-600"
                   />
-                  <label className="font-bold text-zinc-800">解析 PDF 全文</label>
+                  <label className="font-bold text-zinc-800">{t('pdf_fulltext')}</label>
                </div>
-               <p className="text-xs text-zinc-500 pl-8">下载 PDF 文件并提取文本内容供 AI 分析，能获得更精准的细节。</p>
+               <p className="text-xs text-zinc-500 pl-8">{t('pdf_fulltext_desc')}</p>
              </div>
 
              <div className="p-4 rounded-xl border border-zinc-200 hover:border-indigo-300 transition-colors bg-zinc-50/50">
@@ -1166,18 +1375,18 @@ function SettingsView({
                     onChange={e => setForm({ ...form, use_arxiv_source: e.target.checked })}
                     className="w-5 h-5 rounded border-zinc-300 accent-indigo-600"
                   />
-                  <label className="font-bold text-zinc-800">尝试源码解析</label>
+                  <label className="font-bold text-zinc-800">{t('arxiv_source')}</label>
                </div>
-               <p className="text-xs text-zinc-500 pl-8">若 PDF 解析失败或内容不足，尝试下载 LaTeX 源码提取内容。</p>
+               <p className="text-xs text-zinc-500 pl-8">{t('arxiv_source_desc')}</p>
              </div>
            </div>
 
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
              {[
-               { label: "PDF 缓存天数", val: form.pdf_cache_ttl_days, key: 'pdf_cache_ttl_days' },
-               { label: "源码缓存天数", val: form.arxiv_source_ttl_days, key: 'arxiv_source_ttl_days' },
-               { label: "最大页数", val: form.pdf_body_max_pages, key: 'pdf_body_max_pages' },
-               { label: "Token 预算", val: form.pdf_body_max_tokens, key: 'pdf_body_max_tokens', step: 500 }
+               { label: t('pdf_cache'), val: form.pdf_cache_ttl_days, key: 'pdf_cache_ttl_days' },
+               { label: t('source_cache'), val: form.arxiv_source_ttl_days, key: 'arxiv_source_ttl_days' },
+               { label: t('max_pages'), val: form.pdf_body_max_pages, key: 'pdf_body_max_pages' },
+               { label: t('token_budget'), val: form.pdf_body_max_tokens, key: 'pdf_body_max_tokens', step: 500 }
              ].map((field: any) => (
                 <div key={field.key} className="space-y-1">
                   <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{field.label}</label>
@@ -1198,7 +1407,7 @@ function SettingsView({
               onClick={handlePdfSave}
               className="bg-zinc-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-zinc-800 transition-all active:scale-[0.98] text-sm shadow-lg shadow-zinc-200"
             >
-              更新策略
+              {t('btn_update_strategy')}
             </button>
           </div>
         </div>
@@ -1207,9 +1416,9 @@ function SettingsView({
       {/* Analysis Template */}
       <section className="bg-white rounded-3xl p-8 border border-zinc-200 shadow-sm">
          <div className="flex justify-between items-start mb-6">
-            <SectionTitle icon={<Sparkles size={18} />} title="AI 分析模板" desc="自定义简报中 AI 输出的结构与 Prompt。" />
+            <SectionTitle icon={<Sparkles size={18} />} title={t('template_title')} desc={t('template_desc')} />
             <button onClick={addTemplateItem} className="text-xs flex items-center gap-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-lg transition-colors font-bold">
-                <Plus size={14} /> 添加新字段
+                <Plus size={14} /> {t('btn_add_field')}
             </button>
          </div>
 
@@ -1222,16 +1431,16 @@ function SettingsView({
                     </div>
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4">
                         <div className="md:col-span-3 space-y-1">
-                            <label className="text-[10px] font-bold text-zinc-400 uppercase">显示标题</label>
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase">{t('field_header')}</label>
                             <input 
                                 value={item.label}
                                 onChange={e => updateTemplateItem(idx, 'label', e.target.value)}
                                 className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 font-medium"
-                                placeholder="例如：核心创新点"
+                                placeholder="Header..."
                             />
                         </div>
                         <div className="md:col-span-3 space-y-1">
-                            <label className="text-[10px] font-bold text-zinc-400 uppercase">JSON Key</label>
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase">{t('field_key')}</label>
                             <input 
                                 value={item.key}
                                 onChange={e => updateTemplateItem(idx, 'key', e.target.value)}
@@ -1240,13 +1449,13 @@ function SettingsView({
                             />
                         </div>
                         <div className="md:col-span-6 space-y-1">
-                            <label className="text-[10px] font-bold text-zinc-400 uppercase">Prompt 指令</label>
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase">{t('field_prompt')}</label>
                             <textarea 
                                 value={item.prompt}
                                 onChange={e => updateTemplateItem(idx, 'prompt', e.target.value)}
                                 rows={2}
                                 className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 resize-none"
-                                placeholder="告诉 AI 该提取或分析什么..."
+                                placeholder="Prompt..."
                             />
                         </div>
                     </div>
@@ -1261,7 +1470,7 @@ function SettingsView({
                 onClick={handleTemplateSave}
                 className="bg-zinc-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-zinc-800 transition-all active:scale-[0.98] text-sm shadow-lg shadow-zinc-200"
             >
-                保存模板设置
+                {t('btn_save_template')}
             </button>
         </div>
       </section>
@@ -1269,7 +1478,7 @@ function SettingsView({
       {/* Schedule & Zotero */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <section className="bg-white rounded-3xl p-8 border border-zinc-200 shadow-sm">
-             <SectionTitle icon={<Archive size={18} />} title="Zotero 同步" />
+             <SectionTitle icon={<Archive size={18} />} title={t('zotero_title')} />
              <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">User ID</label>
@@ -1294,14 +1503,14 @@ function SettingsView({
                         onClick={handleSave}
                         className="w-full bg-white border border-zinc-300 text-zinc-700 px-6 py-2.5 rounded-xl font-bold hover:bg-zinc-50 transition-all active:scale-[0.98] text-sm"
                     >
-                        保存 Zotero 配置
+                        {t('btn_save_zotero')}
                     </button>
                 </div>
              </div>
           </section>
 
           <section className="bg-white rounded-3xl p-8 border border-zinc-200 shadow-sm">
-              <SectionTitle icon={<Calendar size={18} />} title="每日定时任务" />
+              <SectionTitle icon={<Calendar size={18} />} title={t('schedule_title')} />
               <div className="space-y-5">
                    <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
                       <input
@@ -1311,13 +1520,13 @@ function SettingsView({
                         className="w-5 h-5 rounded border-zinc-300 accent-indigo-600"
                       />
                       <div>
-                        <label className="text-sm font-bold text-zinc-800">启用自动抓取</label>
-                        <p className="text-xs text-zinc-500">每天在指定时间自动运行</p>
+                        <label className="text-sm font-bold text-zinc-800">{t('enable_schedule')}</label>
+                        <p className="text-xs text-zinc-500">{t('enable_schedule_desc')}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">运行时间</label>
+                            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('run_time')}</label>
                             <div className="flex items-center gap-2">
                                 <input
                                   type="number" min={0} max={23}
@@ -1335,7 +1544,7 @@ function SettingsView({
                             </div>
                         </div>
                         <div className="space-y-1">
-                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">限制</label>
+                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('limit_label')}</label>
                              <input
                                 type="number" min={1} max={50}
                                 value={scheduleForm.max_results}
@@ -1345,7 +1554,7 @@ function SettingsView({
                         </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">自动关键词</label>
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('auto_keywords')}</label>
                       <input
                         value={scheduleForm.queries}
                         onChange={e => setScheduleForm({ ...scheduleForm, queries: e.target.value })}
@@ -1358,7 +1567,7 @@ function SettingsView({
                           onClick={handleScheduleSave}
                           className="w-full bg-white border border-zinc-300 text-zinc-700 px-6 py-2.5 rounded-xl font-bold hover:bg-zinc-50 transition-all active:scale-[0.98] text-sm"
                         >
-                          保存定时任务
+                          {t('btn_save_schedule')}
                         </button>
                     </div>
               </div>
