@@ -26,19 +26,6 @@
 - **🔗 Source Parsing**: Supports downloading and parsing ArXiv LaTeX source for more accurate full-text analysis.
 - **🖥️ Full Stack UI**: Includes a robust FastAPI backend and a modern Vite/React UI with a built-in scheduler.
 
-## 🏗️ Architecture
-
-The system follows a streamlined flow from data ingestion to knowledge persistence:
-
-```mermaid
-graph LR
-    A[ArXiv API] --> B(Reporter)
-    B --> C{_inbox/Daily-Brief}
-    C -->|Mark [x]| D(Archivist)
-    D --> E[Zotero Items]
-    D --> F[PDFs public/papers/]
-    D --> G[Notes content/blog/]
-```
 
 ## 🚀 Quick Start Guide
 
