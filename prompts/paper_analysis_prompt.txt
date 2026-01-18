@@ -1,0 +1,38 @@
+请分析以下论文，并以 JSON 格式返回结构化信息。
+
+**论文标题**：{title}
+
+**论文摘要**：
+{abstract}
+
+---
+
+请严格按照以下 JSON 格式输出（不要包含 Markdown 代码块，直接返回纯 JSON）。
+注意：如果输出中包含反斜杠（如 LaTeX），请在 JSON 中使用 \\\\ 转义。
+
+{
+    "title_cn": "中文标题（准确翻译，保留专有名词）",
+    "innovation": "用一句话概括核心创新点。格式建议：'提出了一种基于X的Y方法/机制，解决了Z问题' 或 '首次将X应用于Y，实现了Z'",
+    "formulation": {
+        "input": "问题的输入是什么（用数学符号表示，如 X = {x_1, x_2, ..., x_n}）",
+        "output": "期望的输出是什么（用数学符号表示）",
+        "objective": "优化目标或约束条件（如 max P(y|X), min Loss, s.t. Memory <= C）",
+        "challenge": "主要技术挑战是什么（一句话）"
+    },
+    "method_summary": "方法的核心技术路线（2-3句话，可包含关键公式）",
+    "tags": ["标签1", "标签2", "标签3"],
+    "score": 7,
+    "score_reasoning": "评分理由（考虑：创新性、实用性、理论深度、实验充分性）"
+}
+
+评分标准 (0-10)：
+- 9-10: 开创性工作，可能改变领域方向
+- 7-8: 扎实的创新，有明显的技术贡献
+- 5-6: 增量式改进，有一定价值
+- 3-4: 工程应用或简单组合，创新有限
+- 1-2: 价值存疑或存在明显问题
+
+标签建议（可多选）：
+LLM, RAG, Agent, Reasoning, Memory, Efficiency, Training, Inference,
+Multimodal, CodeGen, Evaluation, Benchmark, Safety, Alignment,
+Architecture, Attention, FineTuning, Prompting, KnowledgeGraph

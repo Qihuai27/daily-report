@@ -1,0 +1,19 @@
+**示例输入**：
+标题：FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning
+摘要：Scaling Transformers to longer sequence lengths has been a major problem...
+
+**示例输出**：
+{
+    "title_cn": "FlashAttention-2: 通过更优并行化和工作分区实现更快的注意力机制",
+    "innovation": "提出了一种改进的 IO-aware 注意力算法，通过优化 GPU 线程块间的工作分区和并行策略，将注意力计算速度提升 2 倍。",
+    "formulation": {
+        "input": "Query Q, Key K, Value V \\in R^{N \\times d}，序列长度 N，头维度 d",
+        "output": "Attention(Q,K,V) = softmax(QK^T/\\sqrt{d})V",
+        "objective": "min T_{compute} s.t. Memory = O(N) (非 O(N^2))",
+        "challenge": "标准注意力的 O(N^2) 显存占用限制了长序列处理"
+    },
+    "method_summary": "核心思路是减少 HBM 访问：(1) 将 Q,K,V 分块加载到 SRAM；(2) 在 SRAM 中完成分块注意力计算；(3) 通过 online softmax 技巧累积更新输出。V2 版本进一步优化了 warp 间的工作分配。",
+    "tags": ["Attention", "Efficiency", "Inference", "LLM"],
+    "score": 9,
+    "score_reasoning": "FlashAttention 系列是近年来最重要的系统优化工作之一，直接使能了长上下文 LLM 的训练和推理，几乎所有主流框架都已集成。"
+}

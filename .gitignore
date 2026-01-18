@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.log
+.pytest_cache/
+.venv/
+.uv/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Runtime outputs
+_logs/
+_inbox/
+public/papers/
+content/blog/
+
+# Node
+ui/node_modules/
+ui/dist/
+ui/.vite/
+
+# OS
+.DS_Store
