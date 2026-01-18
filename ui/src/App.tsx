@@ -554,6 +554,16 @@ function FetchView({ status, t, lang }: { status: Status, t: any, lang: Language
     api.post('/keywords', { template_id: value }).catch(() => undefined);
   };
 
+  const deleteLibraryKeyword = (kw: string) => {
+    const nextLibrary = keywordLibrary.filter(k => k !== kw);
+    setKeywordLibrary(nextLibrary);
+    // Remove from active queries if present
+    if (queries.includes(kw)) {
+      setQueries(queries.filter(q => q !== kw));
+    }
+    api.post('/keywords', { library: nextLibrary }).catch(() => undefined);
+  };
+
   const handleStart = async () => {
     try {
       await api.post('/fetch', {
@@ -638,17 +648,30 @@ function FetchView({ status, t, lang }: { status: Status, t: any, lang: Language
                 {keywordLibrary.map(kw => {
                   const active = queries.includes(kw);
                   return (
-                    <button
+                    <div
                       key={kw}
-                      onClick={() => toggleLibraryKeyword(kw)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      className={`group flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
                         active
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                           : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300'
                       }`}
+                      onClick={() => toggleLibraryKeyword(kw)}
                     >
-                      {kw}
-                    </button>
+                      <span>{kw}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteLibraryKeyword(kw);
+                        }}
+                        className={`p-0.5 rounded-md transition-colors opacity-0 group-hover:opacity-100 ${
+                          active 
+                            ? 'hover:bg-indigo-500 text-indigo-200 hover:text-white' 
+                            : 'hover:bg-zinc-100 text-zinc-400 hover:text-red-500'
+                        }`}
+                      >
+                        <XCircle size={12} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
