@@ -149,6 +149,14 @@ const translations = {
     library_empty: "暂无关键词，请在上方新增",
     params_title: "抓取参数",
     template_label: "组合模板",
+    tpl_all_fields_and: "全文匹配（AND）",
+    tpl_all_fields_and_desc: "每个关键词作为短语，全文范围内同时出现",
+    tpl_title_abs_and: "标题/摘要（AND）",
+    tpl_title_abs_and_desc: "每个关键词作为短语，标题或摘要同时出现",
+    tpl_title_and: "仅标题（AND）",
+    tpl_title_and_desc: "每个关键词作为短语，标题同时出现",
+    tpl_abs_and: "仅摘要（AND）",
+    tpl_abs_and_desc: "每个关键词作为短语，摘要同时出现",
     date_range_label: "时间范围",
     date_start: "开始日期",
     date_end: "结束日期",
@@ -237,6 +245,14 @@ const translations = {
     library_empty: "No keywords yet.",
     params_title: "Parameters",
     template_label: "Templates",
+    tpl_all_fields_and: "Full Text (AND)",
+    tpl_all_fields_and_desc: "Match all keywords in full text.",
+    tpl_title_abs_and: "Title/Abstract (AND)",
+    tpl_title_abs_and_desc: "Match all keywords in title or abstract.",
+    tpl_title_and: "Title Only (AND)",
+    tpl_title_and_desc: "Match all keywords in title only.",
+    tpl_abs_and: "Abstract Only (AND)",
+    tpl_abs_and_desc: "Match all keywords in abstract only.",
     date_range_label: "Date Range",
     date_start: "Start Date",
     date_end: "End Date",
@@ -478,7 +494,15 @@ function NavItem({ active, onClick, icon, label, desc }: { active: boolean, onCl
 function FetchView({ status, t, lang }: { status: Status, t: any, lang: Language }) {
   const [queries, setQueries] = useState<string[]>([]);
   const [newQuery, setNewQuery] = useState("");
-  const [maxResults, setMaxResults] = useState(10);
+  const [maxResults, setMaxResults] = useState(() => {
+    const saved = localStorage.getItem('fetch_max_results');
+    return saved ? parseInt(saved) : 10;
+  });
+  
+  useEffect(() => {
+    localStorage.setItem('fetch_max_results', maxResults.toString());
+  }, [maxResults]);
+
   const [useLlm, setUseLlm] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -650,12 +674,12 @@ function FetchView({ status, t, lang }: { status: Status, t: any, lang: Language
                     onChange={e => handleTemplateChange(e.target.value)}
                     className="w-full md:w-80 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 ring-indigo-500/20 focus:border-indigo-500 transition-all text-zinc-700"
                   >
-                    {keywordTemplates.map(t => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
+                    {keywordTemplates.map(item => (
+                      <option key={item.id} value={item.id}>{(translations[lang] as any)[`tpl_${item.id}`] || item.label}</option>
                     ))}
                   </select>
-                  {selectedTemplate?.desc && (
-                    <p className="text-xs text-zinc-400">{selectedTemplate.desc}</p>
+                  {selectedTemplate && (
+                    <p className="text-xs text-zinc-400">{(translations[lang] as any)[`tpl_${selectedTemplate.id}_desc`] || selectedTemplate.desc}</p>
                   )}
                 </div>
               </div>
