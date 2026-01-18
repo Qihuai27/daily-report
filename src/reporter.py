@@ -23,6 +23,7 @@ import requests
 
 import config
 from config import (
+    ANALYSIS_CACHE_DIR,
     DEFAULT_SEARCH_QUERIES,
     HISTORY_FILE,
     INBOX_DIR,
@@ -91,6 +92,39 @@ def save_to_history(arxiv_id: str, status: str = "processed") -> None:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+# ============================================================
+# 分析缓存
+# ============================================================
+
+
+def _analysis_cache_path(arxiv_id: str) -> Path:
+    safe_id = arxiv_id.replace("/", "_")
+    return ANALYSIS_CACHE_DIR / f"{safe_id}.json"
+
+
+def load_analysis_cache(arxiv_id: str) -> Optional[dict]:
+    path = _analysis_cache_path(arxiv_id)
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def save_analysis_cache(paper: dict) -> None:
+    arxiv_id = paper.get("arxiv_id")
+    if not arxiv_id:
+        return
+    path = _analysis_cache_path(arxiv_id)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(paper, f, ensure_ascii=False, indent=2)
+    except Exception:
+        return
+
+
 def _parse_date_arg(value: str) -> str:
     try:
         return datetime.strptime(value, "%Y-%m-%d").strftime("%Y%m%d")
@@ -128,77 +162,103 @@ def _build_query_with_date(query: str, date_from: Optional[str], date_to: Option
     return f"({query}) AND submittedDate:[{date_from} TO {date_to}]"
 
 
+def _quote_phrase(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", text.strip())
+    if cleaned.startswith('"') and cleaned.endswith('"') and len(cleaned) >= 2:
+        cleaned = cleaned[1:-1]
+    cleaned = cleaned.replace('"', '\\"')
+    return f"\"{cleaned}\""
+
+
+def build_keyword_query(keywords: list[str], template_id: Optional[str] = None) -> str:
+    cleaned = [kw.strip() for kw in keywords if kw and kw.strip()]
+    if not cleaned:
+        return ""
+    phrases = [_quote_phrase(kw) for kw in cleaned]
+
+    if template_id == "title_abs_and":
+        parts = [f"(ti:{p} OR abs:{p})" for p in phrases]
+    elif template_id == "title_and":
+        parts = [f"ti:{p}" for p in phrases]
+    elif template_id == "abs_and":
+        parts = [f"abs:{p}" for p in phrases]
+    else:
+        parts = phrases
+
+    return " AND ".join(parts)
+
+
 def fetch_arxiv_papers(
     queries: list[str],
     max_per_query: int = MAX_RESULTS_PER_QUERY,
     max_total: int = MAX_TOTAL_RESULTS,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    query_template_id: Optional[str] = None,
+    cancel_cb: Optional[callable] = None,
 ) -> list[dict]:
     """从 ArXiv 抓取论文"""
     logger.info(f"开始抓取论文，关键词: {queries}")
 
-    history = load_history()
     all_papers = []
     seen_ids = set()
 
     client = arxiv.Client()
 
-    for query in queries:
-        if len(all_papers) >= max_total:
-            break
+    query = build_keyword_query(queries, query_template_id)
+    if not query:
+        logger.warning("关键词为空，跳过抓取")
+        return []
 
-        query_with_date = _build_query_with_date(query, date_from, date_to)
-        logger.info(f"正在搜索: {query_with_date}")
+    query_with_date = _build_query_with_date(query, date_from, date_to)
+    logger.info(f"正在搜索: {query_with_date}")
 
-        # 构建搜索对象
-        search = arxiv.Search(
-            query=query_with_date,
-            max_results=max_per_query,
-            sort_by=getattr(arxiv.SortCriterion, SORT_BY.replace("D", "_d").title().replace("_d", "D"), arxiv.SortCriterion.SubmittedDate),
-            sort_order=arxiv.SortOrder.Descending,
-        )
+    max_results = max_total if max_total > 0 else max_per_query
 
-        try:
-            results = list(client.results(search))
+    # 构建搜索对象
+    search = arxiv.Search(
+        query=query_with_date,
+        max_results=max_results,
+        sort_by=getattr(
+            arxiv.SortCriterion,
+            SORT_BY.replace("D", "_d").title().replace("_d", "D"),
+            arxiv.SortCriterion.SubmittedDate,
+        ),
+        sort_order=arxiv.SortOrder.Descending,
+    )
 
-            for paper in results:
-                arxiv_id = paper.entry_id.split("/")[-1]
+    try:
+        for paper in client.results(search):
+            if cancel_cb and cancel_cb():
+                logger.info("抓取取消请求已收到，终止搜索")
+                break
 
-                # 去重：历史记录 + 本次抓取
-                if arxiv_id in history or arxiv_id in seen_ids:
-                    logger.debug(f"跳过已处理: {arxiv_id}")
-                    continue
+            arxiv_id = paper.entry_id.split("/")[-1]
+            if arxiv_id in seen_ids:
+                continue
+            seen_ids.add(arxiv_id)
 
-                seen_ids.add(arxiv_id)
+            paper_info = {
+                "arxiv_id": arxiv_id,
+                "title_en": paper.title,
+                "abstract": paper.summary.replace("\n", " "),
+                "authors": [str(a) for a in paper.authors],
+                "published": paper.published.strftime("%Y-%m-%d"),
+                "arxiv_url": paper.entry_id,
+                "pdf_url": paper.pdf_url,
+                "categories": paper.categories,
+            }
+            if load_analysis_cache(arxiv_id):
+                paper_info["cached_analysis"] = True
+            all_papers.append(paper_info)
 
-                paper_info = {
-                    "arxiv_id": arxiv_id,
-                    "title_en": paper.title,
-                    "abstract": paper.summary.replace("\n", " "),
-                    "authors": [str(a) for a in paper.authors],
-                    "published": paper.published.strftime("%Y-%m-%d"),
-                    "arxiv_url": paper.entry_id,
-                    "pdf_url": paper.pdf_url,
-                    "categories": paper.categories,
-                }
-                all_papers.append(paper_info)
+            if len(all_papers) >= max_results:
+                break
+    except Exception as e:
+        logger.error(f"抓取失败 ({query_with_date}): {e}")
+        return []
 
-                if len(all_papers) >= max_total:
-                    break
-
-            logger.info(
-                f"关键词 '{query}' 找到 {len(results)} 篇，新增 {len([p for p in results if p.entry_id.split('/')[-1] in seen_ids])} 篇"
-            )
-
-        except Exception as e:
-            logger.error(f"抓取失败 ({query}): {e}")
-            continue
-
-        # 避免请求过快
-        time.sleep(1)
-
-    logger.info(f"抓取完成，共 {len(all_papers)} 篇新论文")
+    logger.info(f"抓取完成，共 {len(all_papers)} 篇论文")
     return all_papers
 
 
@@ -937,6 +997,13 @@ def analyze_paper(paper: dict, template: List[Dict[str, str]] = None) -> dict:
     if template is None:
         template = load_template()
 
+    cached = load_analysis_cache(paper["arxiv_id"])
+    if cached:
+        logger.info(f"命中缓存，跳过分析: {paper['arxiv_id']}")
+        merged = {**paper, **cached}
+        merged["cached_analysis"] = True
+        return merged
+
     # 使用动态 Prompt
     body_text = _get_body_text_for_paper(paper)
     if body_text:
@@ -968,6 +1035,7 @@ def analyze_paper(paper: dict, template: List[Dict[str, str]] = None) -> dict:
 
     # 保存到历史记录
     save_to_history(paper["arxiv_id"], "analyzed")
+    save_analysis_cache(paper)
 
     return paper
 
@@ -975,7 +1043,8 @@ def analyze_papers(
     papers: list[dict],
     delay: float = 2.0,
     progress_cb: Optional[callable] = None,
-    template: List[Dict[str, str]] = None
+    template: List[Dict[str, str]] = None,
+    cancel_cb: Optional[callable] = None,
 ) -> list[dict]:
     """批量分析论文"""
     analyzed = []
@@ -986,6 +1055,9 @@ def analyze_papers(
         template = load_template()
 
     for i, paper in enumerate(papers, 1):
+        if cancel_cb and cancel_cb():
+            logger.info("分析取消请求已收到，终止分析")
+            break
         logger.info(f"进度: {i}/{total}")
         analyzed_paper = analyze_paper(paper, template=template)
         analyzed.append(analyzed_paper)
@@ -993,7 +1065,7 @@ def analyze_papers(
             progress_cb(i, total)
 
         # 避免 API 限流
-        if i < total:
+        if i < total and (not cancel_cb or not cancel_cb()):
             time.sleep(delay)
 
     return analyzed

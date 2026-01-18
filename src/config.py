@@ -33,12 +33,14 @@ INBOX_DIR = PROJECT_ROOT / "_inbox"
 LOGS_DIR = PROJECT_ROOT / "_logs"
 PAPERS_DIR = PROJECT_ROOT / "public" / "papers"
 BLOG_DIR = PROJECT_ROOT / "content" / "blog"
+ARCHIVE_ROOT_DIR = Path(os.getenv("ARCHIVE_ROOT_DIR", Path.home() / "daily-report" / "arxiv"))
+ANALYSIS_CACHE_DIR = LOGS_DIR / "analysis_cache"
 
 # 历史记录文件
 HISTORY_FILE = LOGS_DIR / "history.jsonl"
 
 # 确保目录存在
-for dir_path in [INBOX_DIR, LOGS_DIR, PAPERS_DIR, BLOG_DIR]:
+for dir_path in [INBOX_DIR, LOGS_DIR, PAPERS_DIR, BLOG_DIR, ARCHIVE_ROOT_DIR, ANALYSIS_CACHE_DIR]:
     dir_path.mkdir(parents=True, exist_ok=True)
 
 # ============================================================

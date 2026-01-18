@@ -102,6 +102,7 @@ class FetchRequest(BaseModel):
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     use_llm: bool = True
+    query_template_id: Optional[str] = None
 
 class ArchiveRequest(BaseModel):
     filename: str
@@ -123,6 +124,15 @@ class TemplateItem(BaseModel):
 class TemplateUpdate(BaseModel):
     template: List[TemplateItem]
 
+class RenameRequest(BaseModel):
+    new_name: str
+
+
+class KeywordUpdate(BaseModel):
+    library: Optional[List[str]] = None
+    last_queries: Optional[List[str]] = None
+    template_id: Optional[str] = None
+
 # ============================================================ 
 # Task Management (Unchanged)
 # ============================================================ 
@@ -136,6 +146,8 @@ class TaskManager:
         self.progress_current = 0
         self.progress_total = 0
         self.progress_stage = None
+        self.cancel_requested = False
+        self.cancel_reason = None
 
     def start(self, task_name: str):
         self.status = "busy"
@@ -145,6 +157,8 @@ class TaskManager:
         self.progress_current = 0
         self.progress_total = 0
         self.progress_stage = None
+        self.cancel_requested = False
+        self.cancel_reason = None
 
     def update(self, message: str):
         self.message = message
@@ -158,6 +172,8 @@ class TaskManager:
         self.progress_current = 0
         self.progress_total = 0
         self.progress_stage = None
+        self.cancel_requested = False
+        self.cancel_reason = None
 
     def error(self, error_msg: str):
         self.status = "error"
@@ -167,6 +183,8 @@ class TaskManager:
         self.progress_current = 0
         self.progress_total = 0
         self.progress_stage = None
+        self.cancel_requested = False
+        self.cancel_reason = None
 
     def set_progress(self, current: int, total: int, stage: Optional[str] = None):
         self.progress_current = max(0, current)
@@ -179,6 +197,17 @@ class TaskManager:
         self.logs.append(f"[{timestamp}] {text}")
         if len(self.logs) > 50:
             self.logs.pop(0)
+
+    def request_cancel(self, reason: str = "用户取消") -> bool:
+        if self.status != "busy":
+            return False
+        self.cancel_requested = True
+        self.cancel_reason = reason
+        self.update("正在取消任务...")
+        return True
+
+    def is_cancelled(self) -> bool:
+        return self.cancel_requested
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -226,6 +255,10 @@ scheduler.start()
 def run_fetch_task(req: FetchRequest):
     try:
         task_manager.start("抓取与分析")
+
+        user_config.save_last_queries(req.queries)
+        template_id = req.query_template_id or user_config.load_keyword_template_id()
+        user_config.save_keyword_template_id(template_id)
         
         task_manager.update(f"正在搜索 ArXiv: {req.queries}...")
         task_manager.set_progress(0, 0, "fetching")
@@ -233,8 +266,14 @@ def run_fetch_task(req: FetchRequest):
             queries=req.queries,
             max_total=req.max_results,
             date_from=req.date_from,
-            date_to=req.date_to
+            date_to=req.date_to,
+            query_template_id=template_id,
+            cancel_cb=task_manager.is_cancelled,
         )
+
+        if task_manager.is_cancelled():
+            task_manager.finish("抓取已取消")
+            return
         
         if not papers:
             task_manager.finish("未找到新论文")
@@ -245,16 +284,31 @@ def run_fetch_task(req: FetchRequest):
             task_manager.set_progress(0, len(papers), "analyzing")
             def _progress_cb(current: int, total: int):
                 task_manager.set_progress(current, total, "analyzing")
-            papers = reporter.analyze_papers(papers, delay=2.0, progress_cb=_progress_cb, template=user_config.load_template())
+            papers = reporter.analyze_papers(
+                papers,
+                delay=2.0,
+                progress_cb=_progress_cb,
+                template=user_config.load_template(),
+                cancel_cb=task_manager.is_cancelled,
+            )
         else:
             task_manager.update("跳过 LLM 分析")
             template = user_config.load_template()
             for paper in papers:
+                cached = reporter.load_analysis_cache(paper["arxiv_id"])
+                if cached:
+                    paper.update(cached)
+                    paper["cached_analysis"] = True
+                    continue
                 paper.setdefault("title_cn", paper["title_en"])
                 paper.setdefault("innovation", "（未分析）")
                 paper.setdefault("score", 5)
                 paper.setdefault("tags", [])
                 paper.setdefault("analysis", {item["key"]: "（未分析）" for item in template})
+
+        if task_manager.is_cancelled():
+            task_manager.finish("分析已取消")
+            return
 
         task_manager.set_progress(len(papers), len(papers), "generating")
         task_manager.update("正在生成简报文件...")
@@ -293,9 +347,10 @@ def run_archive_task(filename: str, collection: Optional[str] = None):
         pdf_paths = {}
         for paper in papers:
             path = archivist.download_pdf(paper)
-            if path:
-                pdf_paths[paper["arxiv_id"]] = path
-            archivist.create_astro_stub(paper, path)
+            public_path = archivist.ensure_public_copy(path) if path else None
+            if public_path:
+                pdf_paths[paper["arxiv_id"]] = public_path
+            archivist.create_astro_stub(paper, public_path)
             archivist.update_history(paper["arxiv_id"], "synced")
 
         task_manager.finish(f"成功归档 {len(papers)} 篇论文")
@@ -447,8 +502,15 @@ def get_status():
         "logs": task_manager.logs,
         "progress_current": task_manager.progress_current,
         "progress_total": task_manager.progress_total,
-        "progress_stage": task_manager.progress_stage
+        "progress_stage": task_manager.progress_stage,
+        "cancel_requested": task_manager.cancel_requested,
     }
+
+@app.post("/api/cancel")
+def cancel_task():
+    if not task_manager.request_cancel():
+        raise HTTPException(status_code=400, detail="No running task")
+    return {"status": "cancelling"}
 
 @app.get("/api/briefs")
 def list_briefs():
@@ -533,6 +595,30 @@ def get_brief_content(filename: str):
             
     return {"header": header, "papers": papers}
 
+@app.post("/api/briefs/{filename}/rename")
+def rename_brief(filename: str, req: RenameRequest):
+    filepath = config.INBOX_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    new_name = Path(req.new_name).name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if not new_name.endswith(".md"):
+        new_name = f"{new_name}.md"
+    new_path = config.INBOX_DIR / new_name
+    if new_path.exists():
+        raise HTTPException(status_code=409, detail="Target already exists")
+    filepath.rename(new_path)
+    return {"status": "success", "name": new_path.name}
+
+@app.delete("/api/briefs/{filename}")
+def delete_brief(filename: str):
+    filepath = config.INBOX_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    filepath.unlink()
+    return {"status": "success"}
+
 @app.post("/api/briefs/{filename}/check")
 def toggle_check(filename: str, paper_id: str, checked: bool):
     filepath = config.INBOX_DIR / filename
@@ -605,6 +691,25 @@ def get_analysis_template():
 @app.post("/api/template")
 def update_analysis_template(update: TemplateUpdate):
     user_config.save_template([item.dict() for item in update.template])
+    return {"status": "success"}
+
+@app.get("/api/keywords")
+def get_keywords():
+    return {
+        "library": user_config.load_keyword_library(),
+        "last_queries": user_config.load_last_queries(),
+        "template_id": user_config.load_keyword_template_id(),
+        "templates": user_config.get_keyword_templates(),
+    }
+
+@app.post("/api/keywords")
+def update_keywords(update: KeywordUpdate):
+    if update.library is not None:
+        user_config.save_keyword_library(update.library)
+    if update.last_queries is not None:
+        user_config.save_last_queries(update.last_queries)
+    if update.template_id is not None:
+        user_config.save_keyword_template_id(update.template_id)
     return {"status": "success"}
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@
 
 import argparse
 import re
+import shutil
 import time
 import unicodedata
 from datetime import datetime
@@ -21,6 +22,7 @@ import arxiv
 import requests
 
 from config import (
+    ARCHIVE_ROOT_DIR,
     BLOG_DIR,
     HISTORY_FILE,
     INBOX_DIR,
@@ -389,8 +391,33 @@ def sanitize_filename(filename: str, max_length: int = 100) -> str:
     return filename.strip("_")
 
 
-def download_pdf(paper: dict, output_dir: Path = PAPERS_DIR) -> Optional[Path]:
+def default_archive_dir(date_str: Optional[str] = None) -> Path:
+    """默认归档目录: ~/daily-report/arxiv/YYYY-MM-DD"""
+    date_str = date_str or datetime.now().strftime("%Y-%m-%d")
+    return ARCHIVE_ROOT_DIR / date_str
+
+
+def ensure_public_copy(pdf_path: Path) -> Optional[Path]:
+    """将 PDF 复制到 public/papers，供 Astro 使用"""
+    if not pdf_path or not pdf_path.exists():
+        return None
+    PAPERS_DIR.mkdir(parents=True, exist_ok=True)
+    target = PAPERS_DIR / pdf_path.name
+    if target.exists():
+        return target
+    try:
+        shutil.copy2(pdf_path, target)
+        return target
+    except Exception as e:
+        logger.warning(f"复制到 public/papers 失败: {e}")
+        return None
+
+
+def download_pdf(paper: dict, output_dir: Optional[Path] = None) -> Optional[Path]:
     """下载 PDF 并重命名"""
+    if output_dir is None:
+        output_dir = default_archive_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
     pdf_url = paper.get("pdf_url")
     if not pdf_url:
         arxiv_url = paper.get("arxiv_url", "")
@@ -428,7 +455,7 @@ def download_pdf(paper: dict, output_dir: Path = PAPERS_DIR) -> Optional[Path]:
 
     except Exception as e:
         logger.error(f"下载失败: {e}")
-        return None
+    return None
 
 
 # ============================================================
@@ -594,8 +621,9 @@ def main():
         print("\n下载 PDF...")
         for paper in papers:
             pdf_path = download_pdf(paper)
-            if pdf_path:
-                pdf_paths[paper["arxiv_id"]] = pdf_path
+            public_path = ensure_public_copy(pdf_path) if pdf_path else None
+            if public_path:
+                pdf_paths[paper["arxiv_id"]] = public_path
         print(f"成功下载 {len(pdf_paths)} 个 PDF")
     else:
         print("\n跳过 PDF 下载")

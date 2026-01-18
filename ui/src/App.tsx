@@ -23,7 +23,9 @@ import {
   Cpu,
   Sparkles,
   RefreshCw,
-  Github
+  Github,
+  Pencil,
+  XCircle
 } from 'lucide-react';
 
 // --- API Helper ---
@@ -58,6 +60,7 @@ interface Status {
   progress_current?: number;
   progress_total?: number;
   progress_stage?: string | null;
+  cancel_requested?: boolean;
 }
 
 interface Config {
@@ -110,6 +113,12 @@ interface TemplateItem {
   key: string;
   label: string;
   prompt: string;
+}
+
+interface KeywordTemplate {
+  id: string;
+  label: string;
+  desc?: string;
 }
 
 // --- Components ---
@@ -223,7 +232,7 @@ export default function App() {
 
       {/* Main Content */}
       <main className="ml-72 p-8 lg:p-12 max-w-7xl mx-auto min-h-screen">
-        {activeTab === 'fetch' && <FetchView config={config} status={status} />}
+        {activeTab === 'fetch' && <FetchView status={status} />}
         {activeTab === 'briefs' && <BriefsView template={template} config={config} />}
         {activeTab === 'settings' && (
           <SettingsView
@@ -263,29 +272,59 @@ function NavItem({ active, onClick, icon, label, desc }: { active: boolean, onCl
 }
 
 // --- View: Fetch ---
-function FetchView({ config, status }: { config: Config | null, status: Status }) {
-  const [queries, setQueries] = useState<string[]>(["LLM", "RAG"]);
+function FetchView({ status }: { status: Status }) {
+  const [queries, setQueries] = useState<string[]>([]);
   const [newQuery, setNewQuery] = useState("");
   const [maxResults, setMaxResults] = useState(10);
   const [useLlm, setUseLlm] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [keywordLibrary, setKeywordLibrary] = useState<string[]>([]);
+  const [keywordTemplates, setKeywordTemplates] = useState<KeywordTemplate[]>([]);
+  const [templateId, setTemplateId] = useState<string>("");
+  const selectedTemplate = keywordTemplates.find(t => t.id === templateId);
 
   useEffect(() => {
-    if (config?.search_queries?.length) {
-      setQueries(config.search_queries);
-    }
-  }, [config]);
+    api.get('/keywords').then(res => {
+      const library = res.data?.library || [];
+      const lastQueries = res.data?.last_queries || [];
+      const templates = res.data?.templates || [];
+      const selected = res.data?.template_id || templates?.[0]?.id || "";
+      const mergedLibrary = Array.from(new Set([...library, ...lastQueries]));
+      setKeywordLibrary(mergedLibrary);
+      setQueries(lastQueries);
+      setKeywordTemplates(templates);
+      setTemplateId(selected);
+      if (mergedLibrary.length !== library.length) {
+        api.post('/keywords', { library: mergedLibrary }).catch(() => undefined);
+      }
+    });
+  }, []);
 
   const addQuery = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
-    if (queries.includes(trimmed)) {
-      setNewQuery("");
-      return;
+    const nextQueries = queries.includes(trimmed) ? queries : [...queries, trimmed];
+    const nextLibrary = keywordLibrary.includes(trimmed) ? keywordLibrary : [...keywordLibrary, trimmed];
+    setQueries(nextQueries);
+    if (nextLibrary !== keywordLibrary) {
+      setKeywordLibrary(nextLibrary);
+      api.post('/keywords', { library: nextLibrary }).catch(() => undefined);
     }
-    setQueries([...queries, trimmed]);
     setNewQuery("");
+  };
+
+  const toggleLibraryKeyword = (kw: string) => {
+    if (queries.includes(kw)) {
+      setQueries(queries.filter(q => q !== kw));
+    } else {
+      setQueries([...queries, kw]);
+    }
+  };
+
+  const handleTemplateChange = (value: string) => {
+    setTemplateId(value);
+    api.post('/keywords', { template_id: value }).catch(() => undefined);
   };
 
   const handleStart = async () => {
@@ -295,10 +334,19 @@ function FetchView({ config, status }: { config: Config | null, status: Status }
         max_results: maxResults,
         use_llm: useLlm,
         date_from: dateFrom || null,
-        date_to: dateTo || null
+        date_to: dateTo || null,
+        query_template_id: templateId || null
       });
     } catch (e) {
       alert("启动任务失败，请检查后端服务是否运行");
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      await api.post('/cancel');
+    } catch (e) {
+      alert("取消任务失败，请检查任务状态");
     }
   };
 
@@ -323,6 +371,8 @@ function FetchView({ config, status }: { config: Config | null, status: Status }
               </div>
               <h3 className="font-bold text-lg text-zinc-800">搜索关键词</h3>
             </div>
+
+            <p className="text-xs text-zinc-400 mb-4">关键词以短语形式匹配，默认使用 AND 逻辑组合。</p>
             
             <div className="flex flex-wrap gap-2.5 mb-6 min-h-[80px] content-start bg-zinc-50/50 p-4 rounded-xl border border-zinc-100/50">
               {queries.map((q, i) => (
@@ -344,6 +394,34 @@ function FetchView({ config, status }: { config: Config | null, status: Status }
                 />
               </div>
             </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">关键词库</h4>
+                <span className="text-[10px] text-zinc-400">点击加入 / 移除</span>
+              </div>
+              <div className="flex flex-wrap gap-2 min-h-[44px]">
+                {keywordLibrary.length === 0 && (
+                  <span className="text-xs text-zinc-400">暂无关键词，请在上方新增</span>
+                )}
+                {keywordLibrary.map(kw => {
+                  const active = queries.includes(kw);
+                  return (
+                    <button
+                      key={kw}
+                      onClick={() => toggleLibraryKeyword(kw)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        active
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300'
+                      }`}
+                    >
+                      {kw}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Settings Card */}
@@ -356,6 +434,25 @@ function FetchView({ config, status }: { config: Config | null, status: Status }
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Keyword Template */}
+              <div className="md:col-span-2 space-y-3">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">组合模板</label>
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <select
+                    value={templateId}
+                    onChange={e => handleTemplateChange(e.target.value)}
+                    className="w-full md:w-80 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 ring-indigo-500/20 focus:border-indigo-500 transition-all text-zinc-700"
+                  >
+                    {keywordTemplates.map(t => (
+                      <option key={t.id} value={t.id}>{t.label}</option>
+                    ))}
+                  </select>
+                  {selectedTemplate?.desc && (
+                    <p className="text-xs text-zinc-400">{selectedTemplate.desc}</p>
+                  )}
+                </div>
+              </div>
+
                {/* Date Range */}
                <div className="space-y-4">
                 <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
@@ -381,6 +478,7 @@ function FetchView({ config, status }: { config: Config | null, status: Status }
                     />
                   </div>
                 </div>
+                <p className="text-[11px] text-zinc-400">默认不限制时间范围；可在此处设置起止日期。</p>
               </div>
 
                {/* Limits & AI */}
@@ -457,6 +555,16 @@ function FetchView({ config, status }: { config: Config | null, status: Status }
                    <>开始抓取任务</>
                  )}
               </button>
+
+              {status.status === 'busy' && (
+                <button
+                  onClick={handleCancel}
+                  disabled={status.cancel_requested}
+                  className="mt-3 w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider border border-red-200 text-red-600 bg-white/10 hover:bg-red-50 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <XCircle size={16} /> {status.cancel_requested ? '正在取消...' : '取消抓取任务'}
+                </button>
+              )}
             </div>
             
             <div className="mt-6 bg-white/50 border border-zinc-200 rounded-2xl p-6 backdrop-blur-sm">
@@ -482,8 +590,13 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
   const [loading, setLoading] = useState(false);
   const [collection, setCollection] = useState<string>('');
 
+  const refreshBriefs = async () => {
+    const res = await api.get('/briefs');
+    setBriefs(res.data);
+  };
+
   useEffect(() => {
-    api.get('/briefs').then(res => setBriefs(res.data));
+    refreshBriefs();
   }, []);
 
   useEffect(() => {
@@ -518,6 +631,34 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
     if(!selectedFile) return;
     await api.post('/archive', { filename: selectedFile, collection: collection || undefined });
     alert("归档任务已提交！请关注左下角任务状态。");
+  };
+
+  const renameBrief = async () => {
+    if (!selectedFile) return;
+    const nextName = window.prompt("输入新的简报文件名", selectedFile);
+    if (!nextName || nextName.trim() === selectedFile) return;
+    try {
+      const res = await api.post(`/briefs/${selectedFile}/rename`, { new_name: nextName.trim() });
+      const newFile = res.data?.name || nextName.trim();
+      await refreshBriefs();
+      await loadDetail(newFile);
+    } catch (e) {
+      alert("改名失败，请检查是否重名或权限不足。");
+    }
+  };
+
+  const deleteBrief = async () => {
+    if (!selectedFile) return;
+    const ok = window.confirm(`确认删除简报：${selectedFile}？`);
+    if (!ok) return;
+    try {
+      await api.delete(`/briefs/${selectedFile}`);
+      await refreshBriefs();
+      setSelectedFile(null);
+      setDetail(null);
+    } catch (e) {
+      alert("删除失败，请检查后端服务或权限。");
+    }
   };
 
   return (
@@ -573,6 +714,18 @@ function BriefsView({ template, config }: { template: TemplateItem[]; config: Co
                     className="w-32 bg-transparent text-xs font-medium text-zinc-700 outline-none placeholder:text-zinc-300"
                   />
                 </div>
+                <button
+                  onClick={renameBrief}
+                  className="bg-white border border-zinc-200 text-zinc-600 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-2 transition-all hover:border-zinc-300 hover:text-zinc-800 active:scale-95"
+                >
+                  <Pencil size={14} /> 改名
+                </button>
+                <button
+                  onClick={deleteBrief}
+                  className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-2 transition-all hover:border-red-300 hover:text-red-700 active:scale-95"
+                >
+                  <Trash2 size={14} /> 删除
+                </button>
                 <button 
                   onClick={startArchive}
                   className="bg-zinc-900 hover:bg-zinc-800 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-2 transition-all shadow-md active:scale-95"
