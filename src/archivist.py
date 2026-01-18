@@ -411,7 +411,6 @@ class ZoteroClient:
             "linkMode": "linked_file",
             "title": file_path.stem,
             "path": str(file_path),
-            "filename": file_path.name,
             "contentType": content_type,
         }
         return self.create_attachment_item(attachment_data)
