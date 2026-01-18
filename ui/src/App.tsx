@@ -90,6 +90,8 @@ interface Config {
   has_zotero_key: boolean;
   zotero_api_key?: string;
   zotero_collection: string;
+  zotero_attachment_mode: string;
+  zotero_linked_dir: string;
   search_queries: string[];
   use_pdf_fulltext: boolean;
   pdf_body_max_pages: number;
@@ -211,6 +213,15 @@ const translations = {
     btn_save_template: "保存模板设置",
     
     zotero_title: "Zotero 同步",
+    zotero_attachment_mode: "附件模式",
+    zotero_attachment_mode_desc: "选择是否上传 PDF 或创建本地 Linked 附件。",
+    zotero_attachment_none: "不附加 PDF",
+    zotero_attachment_upload: "上传到 Zotero 存储",
+    zotero_attachment_linked: "Linked 本地文件（云盘）",
+    zotero_attachment_both: "上传 + Linked",
+    zotero_linked_dir: "Linked 附件目录",
+    zotero_linked_dir_placeholder: "填写本地云盘目录绝对路径",
+    zotero_linked_dir_hint: "请填写你的 Zotero linked 文件夹路径（如 Dropbox/OneDrive）。",
     btn_save_zotero: "保存 Zotero 配置",
     
     schedule_title: "每日定时任务",
@@ -307,6 +318,15 @@ const translations = {
     btn_save_template: "Save Template",
     
     zotero_title: "Zotero Sync",
+    zotero_attachment_mode: "Attachment Mode",
+    zotero_attachment_mode_desc: "Choose to upload PDFs or create linked local attachments.",
+    zotero_attachment_none: "No PDF attachments",
+    zotero_attachment_upload: "Upload to Zotero storage",
+    zotero_attachment_linked: "Linked local file (cloud folder)",
+    zotero_attachment_both: "Upload + Linked",
+    zotero_linked_dir: "Linked Attachment Directory",
+    zotero_linked_dir_placeholder: "Absolute path to your cloud-synced folder",
+    zotero_linked_dir_hint: "Fill in your Zotero linked folder path (e.g. Dropbox/OneDrive).",
     btn_save_zotero: "Save Zotero Config",
     
     schedule_title: "Daily Schedule",
@@ -1136,6 +1156,8 @@ function SettingsView({
       
       zotero_user_id: initialConfig.zotero_user_id,
       zotero_api_key: '',
+      zotero_attachment_mode: initialConfig.zotero_attachment_mode,
+      zotero_linked_dir: initialConfig.zotero_linked_dir,
       use_pdf_fulltext: initialConfig.use_pdf_fulltext,
       pdf_body_max_pages: initialConfig.pdf_body_max_pages,
       pdf_body_max_tokens: initialConfig.pdf_body_max_tokens,
@@ -1544,6 +1566,30 @@ function SettingsView({
                     onChange={e => setForm({...form, zotero_api_key: e.target.value})}
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
                   />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('zotero_attachment_mode')}</label>
+                  <select
+                    value={form.zotero_attachment_mode || 'none'}
+                    onChange={e => setForm({...form, zotero_attachment_mode: e.target.value})}
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
+                  >
+                    <option value="none">{t('zotero_attachment_none')}</option>
+                    <option value="upload">{t('zotero_attachment_upload')}</option>
+                    <option value="linked">{t('zotero_attachment_linked')}</option>
+                    <option value="both">{t('zotero_attachment_both')}</option>
+                  </select>
+                  <p className="text-xs text-zinc-500">{t('zotero_attachment_mode_desc')}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('zotero_linked_dir')}</label>
+                  <input
+                    placeholder={t('zotero_linked_dir_placeholder')}
+                    value={form.zotero_linked_dir || ''}
+                    onChange={e => setForm({...form, zotero_linked_dir: e.target.value})}
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
+                  />
+                  <p className="text-xs text-zinc-500">{t('zotero_linked_dir_hint')}</p>
                 </div>
                 <div className="pt-4">
                     <button 

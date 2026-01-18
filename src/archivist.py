@@ -9,6 +9,8 @@
 """
 
 import argparse
+import hashlib
+import mimetypes
 import re
 import shutil
 import time
@@ -28,7 +30,9 @@ from config import (
     INBOX_DIR,
     PAPERS_DIR,
     ZOTERO_API_KEY,
+    ZOTERO_ATTACHMENT_MODE,
     ZOTERO_DEFAULT_COLLECTION,
+    ZOTERO_LINKED_DIR,
     ZOTERO_LIBRARY_TYPE,
     ZOTERO_USER_ID,
     logger,
@@ -152,6 +156,61 @@ def fetch_arxiv_metadata(arxiv_id: str) -> Optional[dict]:
 # ============================================================
 
 
+def normalize_attachment_mode(mode: Optional[str]) -> str:
+    """标准化附件模式"""
+    mode = (mode or "none").strip().lower()
+    if mode not in {"none", "upload", "linked", "both"}:
+        return "none"
+    return mode
+
+
+def attachment_mode_flags(mode: Optional[str]) -> set[str]:
+    """返回附件模式集合"""
+    mode = normalize_attachment_mode(mode)
+    if mode == "both":
+        return {"upload", "linked"}
+    if mode == "none":
+        return set()
+    return {mode}
+
+
+def compute_md5(file_path: Path) -> str:
+    """计算文件 MD5"""
+    md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            md5.update(chunk)
+    return md5.hexdigest()
+
+
+def guess_content_type(file_path: Path) -> str:
+    """推断文件 MIME 类型"""
+    content_type, _ = mimetypes.guess_type(str(file_path))
+    return content_type or "application/pdf"
+
+
+def move_to_linked_dir(pdf_path: Path, linked_dir: Path) -> Path:
+    """将 PDF 移动到 Linked 附件目录"""
+    linked_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        pdf_path.resolve().relative_to(linked_dir.resolve())
+        return pdf_path
+    except ValueError:
+        pass
+
+    target = linked_dir / pdf_path.name
+    if target.exists():
+        logger.info(f"Linked 目录已存在同名文件，使用现有文件: {target}")
+        return target
+
+    try:
+        shutil.move(str(pdf_path), str(target))
+        return target
+    except Exception as e:
+        logger.warning(f"移动到 Linked 目录失败: {e}")
+        return pdf_path
+
+
 class ZoteroClient:
     """Zotero API 客户端"""
 
@@ -222,6 +281,20 @@ class ZoteroClient:
         logger.error(f"创建条目失败: {result}")
         return {}
 
+    def create_attachment_item(self, attachment_data: dict) -> dict:
+        """创建附件条目"""
+        url = f"{self._get_library_url()}/items"
+        payload = [attachment_data]
+        response = requests.post(url, headers=self.headers, json=payload)
+        response.raise_for_status()
+
+        result = response.json()
+        if "successful" in result and "0" in result["successful"]:
+            return result["successful"]["0"]
+
+        logger.error(f"创建附件失败: {result}")
+        return {}
+
     def add_note(self, parent_key: str, note_content: str) -> dict:
         """添加笔记附件"""
         url = f"{self._get_library_url()}/items"
@@ -238,6 +311,102 @@ class ZoteroClient:
 
         result = response.json()
         return result.get("successful", {}).get("0", {})
+
+    def request_upload_authorization(
+        self,
+        item_key: str,
+        filename: str,
+        filesize: int,
+        md5: str,
+        mtime_ms: int,
+    ) -> dict:
+        """请求上传授权"""
+        url = f"{self._get_library_url()}/items/{item_key}/file"
+        payload = {
+            "md5": md5,
+            "filename": filename,
+            "filesize": filesize,
+            "mtime": mtime_ms,
+            "params": 1,
+        }
+        headers = {"Zotero-API-Key": self.api_key, "If-None-Match": "*"}
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def upload_file_to_storage(self, upload_info: dict, file_path: Path, content_type: str) -> None:
+        """上传文件到存储服务"""
+        url = upload_info.get("url")
+        if not url:
+            raise ValueError("上传信息缺少 URL")
+
+        params = upload_info.get("params")
+        if params:
+            data = {item["name"]: item["value"] for item in params}
+            with open(file_path, "rb") as f:
+                files = {"file": (file_path.name, f, content_type)}
+                response = requests.post(url, data=data, files=files)
+                response.raise_for_status()
+            return
+
+        prefix = upload_info.get("prefix", "")
+        suffix = upload_info.get("suffix", "")
+        if prefix or suffix:
+            with open(file_path, "rb") as f:
+                file_bytes = f.read()
+            body = prefix.encode("utf-8") + file_bytes + suffix.encode("utf-8")
+            response = requests.post(url, data=body, headers={"Content-Type": upload_info.get("contentType", content_type)})
+            response.raise_for_status()
+            return
+
+        raise ValueError("上传信息缺少 params/prefix/suffix")
+
+    def register_upload(self, item_key: str, upload_key: str) -> None:
+        """注册上传完成"""
+        url = f"{self._get_library_url()}/items/{item_key}/file"
+        payload = {"upload": upload_key}
+        headers = {"Zotero-API-Key": self.api_key, "If-None-Match": "*"}
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+
+    def upload_attachment_file(self, item_key: str, file_path: Path, content_type: str) -> bool:
+        """上传附件文件"""
+        md5 = compute_md5(file_path)
+        stat = file_path.stat()
+        filesize = stat.st_size
+        mtime_ms = int(stat.st_mtime * 1000)
+
+        upload_info = self.request_upload_authorization(
+            item_key=item_key,
+            filename=file_path.name,
+            filesize=filesize,
+            md5=md5,
+            mtime_ms=mtime_ms,
+        )
+
+        if upload_info.get("exists"):
+            return True
+
+        self.upload_file_to_storage(upload_info, file_path, content_type)
+        upload_key = upload_info.get("uploadKey")
+        if not upload_key:
+            raise ValueError("上传信息缺少 uploadKey")
+
+        self.register_upload(item_key, upload_key)
+        return True
+
+    def create_linked_attachment(self, parent_key: str, file_path: Path, content_type: str) -> dict:
+        """创建 Linked 附件"""
+        attachment_data = {
+            "itemType": "attachment",
+            "parentItem": parent_key,
+            "linkMode": "linked_file",
+            "title": file_path.stem,
+            "path": str(file_path),
+            "filename": file_path.name,
+            "contentType": content_type,
+        }
+        return self.create_attachment_item(attachment_data)
 
 
 def build_zotero_item(paper: dict, metadata: dict) -> dict:
@@ -316,7 +485,13 @@ def build_note_content(paper: dict) -> str:
     return note.strip()
 
 
-def sync_to_zotero(papers: list[dict], collection_name: str = ZOTERO_DEFAULT_COLLECTION) -> list[str]:
+def sync_to_zotero(
+    papers: list[dict],
+    collection_name: str = ZOTERO_DEFAULT_COLLECTION,
+    pdf_paths: Optional[dict[str, Path]] = None,
+    attachment_mode: Optional[str] = None,
+    linked_dir: Optional[Path] = None,
+) -> list[str]:
     """同步论文到 Zotero"""
     if not ZOTERO_API_KEY or not ZOTERO_USER_ID:
         logger.warning("Zotero API 未配置，跳过同步")
@@ -324,6 +499,9 @@ def sync_to_zotero(papers: list[dict], collection_name: str = ZOTERO_DEFAULT_COL
 
     client = ZoteroClient()
     synced_keys = []
+    mode_flags = attachment_mode_flags(attachment_mode or ZOTERO_ATTACHMENT_MODE)
+    linked_dir = linked_dir or (Path(ZOTERO_LINKED_DIR) if ZOTERO_LINKED_DIR else None)
+    pdf_paths = pdf_paths or {}
 
     # 获取或创建收藏集
     try:
@@ -340,6 +518,9 @@ def sync_to_zotero(papers: list[dict], collection_name: str = ZOTERO_DEFAULT_COL
         metadata = fetch_arxiv_metadata(paper["arxiv_id"])
         if not metadata:
             continue
+
+        if not paper.get("pdf_url") and metadata.get("pdf_url"):
+            paper["pdf_url"] = metadata["pdf_url"]
 
         # 构建条目
         item_data = build_zotero_item(paper, metadata)
@@ -358,6 +539,53 @@ def sync_to_zotero(papers: list[dict], collection_name: str = ZOTERO_DEFAULT_COL
                 note_content = build_note_content(paper)
                 client.add_note(item_key, note_content)
                 logger.info(f"笔记已添加")
+
+            # 添加附件
+            if mode_flags:
+                pdf_path = pdf_paths.get(paper["arxiv_id"])
+                if not pdf_path:
+                    pdf_path = download_pdf(paper)
+                if pdf_path and "linked" in mode_flags and linked_dir:
+                    pdf_path = move_to_linked_dir(pdf_path, linked_dir)
+                    pdf_paths[paper["arxiv_id"]] = pdf_path
+
+                if not pdf_path:
+                    logger.warning(f"未找到 PDF，跳过附件: {paper['arxiv_id']}")
+                else:
+                    content_type = guess_content_type(pdf_path)
+
+                    if "linked" in mode_flags:
+                        if not linked_dir:
+                            logger.warning("Linked 附件目录未配置，跳过 linked 附件")
+                        else:
+                            try:
+                                linked_result = client.create_linked_attachment(item_key, pdf_path, content_type)
+                                if linked_result:
+                                    logger.info("Linked 附件已创建")
+                                else:
+                                    logger.warning("Linked 附件创建失败：未返回条目")
+                            except Exception as e:
+                                logger.warning(f"Linked 附件创建失败: {e}")
+
+                    if "upload" in mode_flags:
+                        try:
+                            attachment_data = {
+                                "itemType": "attachment",
+                                "parentItem": item_key,
+                                "linkMode": "imported_file",
+                                "title": pdf_path.stem,
+                                "filename": pdf_path.name,
+                                "contentType": content_type,
+                            }
+                            attachment_result = client.create_attachment_item(attachment_data)
+                            attachment_key = attachment_result.get("key")
+                            if attachment_key:
+                                client.upload_attachment_file(attachment_key, pdf_path, content_type)
+                                logger.info("PDF 已上传到 Zotero")
+                            else:
+                                logger.warning("PDF 上传失败：附件条目未创建")
+                        except Exception as e:
+                            logger.warning(f"上传附件失败: {e}")
 
             synced_keys.append(item_key)
 
@@ -608,31 +836,51 @@ def main():
         print(f"  - {p['arxiv_id']}: {p['title_cn'][:40]}...")
 
     # 3. Zotero 同步
-    if not args.no_zotero:
-        print("\n同步到 Zotero...")
-        synced = sync_to_zotero(papers, args.collection)
-        print(f"成功同步 {len(synced)} 篇")
-    else:
-        print("\n跳过 Zotero 同步")
+    attachment_mode = normalize_attachment_mode(ZOTERO_ATTACHMENT_MODE)
+    mode_flags = attachment_mode_flags(attachment_mode)
+    linked_dir = Path(ZOTERO_LINKED_DIR) if ZOTERO_LINKED_DIR else None
 
-    # 4. PDF 下载
+    # 3. PDF 下载
     pdf_paths = {}
-    if not args.no_pdf:
+    public_paths = {}
+    should_download = (not args.no_pdf) or bool(mode_flags)
+    if should_download:
+        if args.no_pdf and mode_flags:
+            logger.warning("附件需要 PDF，忽略 --no-pdf，仍会下载用于附件")
         print("\n下载 PDF...")
         for paper in papers:
             pdf_path = download_pdf(paper)
-            public_path = ensure_public_copy(pdf_path) if pdf_path else None
-            if public_path:
-                pdf_paths[paper["arxiv_id"]] = public_path
+            if pdf_path and "linked" in mode_flags and linked_dir:
+                pdf_path = move_to_linked_dir(pdf_path, linked_dir)
+            if pdf_path:
+                pdf_paths[paper["arxiv_id"]] = pdf_path
+                if not args.no_astro:
+                    public_path = ensure_public_copy(pdf_path)
+                    if public_path:
+                        public_paths[paper["arxiv_id"]] = public_path
         print(f"成功下载 {len(pdf_paths)} 个 PDF")
     else:
         print("\n跳过 PDF 下载")
+
+    # 4. Zotero 同步
+    if not args.no_zotero:
+        print("\n同步到 Zotero...")
+        synced = sync_to_zotero(
+            papers,
+            args.collection,
+            pdf_paths=pdf_paths,
+            attachment_mode=attachment_mode,
+            linked_dir=linked_dir,
+        )
+        print(f"成功同步 {len(synced)} 篇")
+    else:
+        print("\n跳过 Zotero 同步")
 
     # 5. Astro 笔记存根
     if not args.no_astro:
         print("\n创建 Astro 笔记存根...")
         for paper in papers:
-            pdf_path = pdf_paths.get(paper["arxiv_id"])
+            pdf_path = public_paths.get(paper["arxiv_id"])
             create_astro_stub(paper, pdf_path)
         print(f"创建 {len(papers)} 个笔记存根")
     else:

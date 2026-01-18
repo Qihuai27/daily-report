@@ -83,6 +83,8 @@ class ConfigUpdate(BaseModel):
     # Zotero
     zotero_api_key: Optional[str] = None
     zotero_user_id: Optional[str] = None
+    zotero_attachment_mode: Optional[str] = None
+    zotero_linked_dir: Optional[str] = None
     
     # Others
     search_queries: Optional[List[str]] = None
@@ -337,20 +339,37 @@ def run_archive_task(filename: str, collection: Optional[str] = None):
             return
 
         task_manager.update(f"发现 {len(papers)} 篇待处理论文")
-        
+
+        attachment_mode = archivist.normalize_attachment_mode(config.ZOTERO_ATTACHMENT_MODE)
+        mode_flags = archivist.attachment_mode_flags(attachment_mode)
+        linked_dir = Path(config.ZOTERO_LINKED_DIR) if config.ZOTERO_LINKED_DIR else None
+
+        task_manager.update("正在下载 PDF 并创建笔记...")
+        pdf_paths = {}
+        public_paths = {}
+        for paper in papers:
+            path = archivist.download_pdf(paper)
+            if path and "linked" in mode_flags and linked_dir:
+                path = archivist.move_to_linked_dir(path, linked_dir)
+            if path:
+                pdf_paths[paper["arxiv_id"]] = path
+                public_path = archivist.ensure_public_copy(path)
+            if public_path:
+                public_paths[paper["arxiv_id"]] = public_path
+            archivist.create_astro_stub(paper, public_paths.get(paper["arxiv_id"]))
+
         if config.ZOTERO_API_KEY and config.ZOTERO_USER_ID:
             task_manager.update("正在同步到 Zotero...")
             collection_name = collection or config.ZOTERO_DEFAULT_COLLECTION
-            archivist.sync_to_zotero(papers, collection_name)
-        
-        task_manager.update("正在下载 PDF 并创建笔记...")
-        pdf_paths = {}
+            archivist.sync_to_zotero(
+                papers,
+                collection_name,
+                pdf_paths=pdf_paths,
+                attachment_mode=attachment_mode,
+                linked_dir=linked_dir,
+            )
+
         for paper in papers:
-            path = archivist.download_pdf(paper)
-            public_path = archivist.ensure_public_copy(path) if path else None
-            if public_path:
-                pdf_paths[paper["arxiv_id"]] = public_path
-            archivist.create_astro_stub(paper, public_path)
             archivist.update_history(paper["arxiv_id"], "synced")
 
         task_manager.finish(f"成功归档 {len(papers)} 篇论文")
@@ -386,6 +405,8 @@ def get_api_config():
         "zotero_user_id": config.ZOTERO_USER_ID,
         "zotero_collection": config.ZOTERO_DEFAULT_COLLECTION,
         "has_zotero_key": bool(config.ZOTERO_API_KEY),
+        "zotero_attachment_mode": config.ZOTERO_ATTACHMENT_MODE,
+        "zotero_linked_dir": config.ZOTERO_LINKED_DIR,
         
         "search_queries": config.DEFAULT_SEARCH_QUERIES,
         "use_pdf_fulltext": config.USE_PDF_FULLTEXT,
@@ -453,6 +474,14 @@ def update_api_config(updates: ConfigUpdate):
     if updates.zotero_user_id is not None:
         set_key(str(ENV_FILE), "ZOTERO_USER_ID", updates.zotero_user_id)
         config.ZOTERO_USER_ID = updates.zotero_user_id
+    if updates.zotero_attachment_mode is not None:
+        mode = updates.zotero_attachment_mode.strip().lower()
+        set_key(str(ENV_FILE), "ZOTERO_ATTACHMENT_MODE", mode)
+        config.ZOTERO_ATTACHMENT_MODE = mode
+    if updates.zotero_linked_dir is not None:
+        linked_dir = updates.zotero_linked_dir.strip()
+        set_key(str(ENV_FILE), "ZOTERO_LINKED_DIR", linked_dir)
+        config.ZOTERO_LINKED_DIR = linked_dir
 
     # PDF Body Extraction
     if updates.use_pdf_fulltext is not None:

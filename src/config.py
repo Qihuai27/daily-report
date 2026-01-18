@@ -110,6 +110,8 @@ ZOTERO_API_KEY = os.getenv("ZOTERO_API_KEY", "")
 ZOTERO_USER_ID = os.getenv("ZOTERO_USER_ID", "")
 ZOTERO_LIBRARY_TYPE = os.getenv("ZOTERO_LIBRARY_TYPE", "user")
 ZOTERO_DEFAULT_COLLECTION = os.getenv("ZOTERO_DEFAULT_COLLECTION", "ArXiv Daily")
+ZOTERO_ATTACHMENT_MODE = os.getenv("ZOTERO_ATTACHMENT_MODE", "none").lower()
+ZOTERO_LINKED_DIR = os.getenv("ZOTERO_LINKED_DIR", "")
 
 # ============================================================
 # 简报生成配置
