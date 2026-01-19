@@ -9,6 +9,7 @@
 """
 
 import argparse
+import ast
 import json
 import re
 import time
@@ -401,6 +402,13 @@ def _call_gemini(prompt: str, system_prompt: str) -> Optional[str]:
         return None
     return parts[0].get("text", "")
 
+def _fix_json_text(text: str) -> str:
+    # 修正常见问题：尾逗号 + 非法反斜杠转义（如 \in、\mathbb）
+    fixed = re.sub(r",\s*([}\]])", r"\1", text)
+    fixed = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", fixed)
+    return fixed
+
+
 def _try_parse_json(text: str) -> Optional[dict]:
     if not text:
         return None
@@ -410,15 +418,323 @@ def _try_parse_json(text: str) -> Optional[dict]:
     except json.JSONDecodeError:
         pass
 
-    # 修正常见问题：尾逗号 + 非法反斜杠转义（如 \in、\mathbb）
-    fixed = re.sub(r",\s*([}\]])", r"\1", text)
-    fixed = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", fixed)
+    fixed = _fix_json_text(text)
     try:
         return json.loads(fixed)
     except json.JSONDecodeError:
         return None
 
-def parse_llm_response(response: str) -> Optional[dict]:
+
+def _strip_control_chars(text: str) -> str:
+    cleaned = []
+    for ch in text:
+        code = ord(ch)
+        if code < 32 and ch not in ("\n", "\r", "\t"):
+            continue
+        cleaned.append(ch)
+    return "".join(cleaned)
+
+
+def _replace_smart_quotes(text: str) -> str:
+    return (
+        text.replace("“", '"')
+        .replace("”", '"')
+        .replace("‘", "'")
+        .replace("’", "'")
+    )
+
+
+def _escape_unescaped_newlines(text: str) -> str:
+    out = []
+    in_string = False
+    quote_char = ""
+    escaped = False
+
+    for ch in text:
+        if in_string:
+            if escaped:
+                out.append(ch)
+                escaped = False
+                continue
+            if ch == "\\":
+                out.append(ch)
+                escaped = True
+                continue
+            if ch == quote_char:
+                in_string = False
+                out.append(ch)
+                continue
+            if ch == "\n":
+                out.append("\\n")
+                continue
+            if ch == "\r":
+                out.append("\\r")
+                continue
+            if ch == "\t":
+                out.append("\\t")
+                continue
+            out.append(ch)
+            continue
+
+        if ch in ('"', "'"):
+            in_string = True
+            quote_char = ch
+            out.append(ch)
+            continue
+        out.append(ch)
+
+    return "".join(out)
+
+
+def _quote_known_keys(text: str, keys: set[str]) -> str:
+    out = []
+    in_string = False
+    quote_char = ""
+    escaped = False
+    i = 0
+    length = len(text)
+
+    while i < length:
+        ch = text[i]
+        if in_string:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote_char:
+                in_string = False
+            i += 1
+            continue
+
+        if ch in ('"', "'"):
+            in_string = True
+            quote_char = ch
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch in "{,":
+            out.append(ch)
+            i += 1
+            j = i
+            while j < length and text[j].isspace():
+                out.append(text[j])
+                j += 1
+            if j < length and text[j] in ('"', "'"):
+                i = j
+                continue
+            k = j
+            while k < length and re.match(r"[A-Za-z0-9_]", text[k]):
+                k += 1
+            key = text[j:k]
+            l = k
+            while l < length and text[l].isspace():
+                l += 1
+            if key and key in keys and l < length and text[l] == ":":
+                out.append(f'"{key}"')
+                out.append(text[k:l])
+                i = l
+                continue
+            out.append(text[j:k])
+            i = k
+            continue
+
+        out.append(ch)
+        i += 1
+
+    return "".join(out)
+
+
+def _normalize_tags(tags: object) -> list[str]:
+    if isinstance(tags, list):
+        cleaned = []
+        for item in tags:
+            text = str(item).strip().lstrip("#").strip("`")
+            if text:
+                cleaned.append(text)
+        return cleaned
+    if isinstance(tags, str):
+        raw = tags.replace("#", " ").replace("`", " ")
+        parts = re.split(r"[,\n;/|]+", raw)
+        if len(parts) == 1:
+            parts = re.split(r"\s+", raw)
+        return [p.strip() for p in parts if p.strip()]
+    return []
+
+
+def _normalize_score(score: object) -> Optional[int]:
+    if isinstance(score, (int, float)):
+        return max(0, min(10, int(round(score))))
+    if isinstance(score, str):
+        match = re.search(r"\d+(?:\.\d+)?", score)
+        if match:
+            return max(0, min(10, int(round(float(match.group(0))))))
+    return None
+
+
+def _normalize_analysis_dict(parsed: dict, template: List[Dict[str, str]]) -> dict:
+    if not isinstance(parsed, dict):
+        return {}
+
+    analysis_keys = [item["key"] for item in template]
+    analysis = parsed.get("analysis")
+    if not isinstance(analysis, dict):
+        analysis = {}
+        for key in analysis_keys:
+            if key in parsed:
+                analysis[key] = parsed.get(key)
+        if analysis:
+            parsed["analysis"] = analysis
+
+    if "tags" in parsed:
+        parsed["tags"] = _normalize_tags(parsed.get("tags"))
+    if "score" in parsed:
+        normalized_score = _normalize_score(parsed.get("score"))
+        if normalized_score is not None:
+            parsed["score"] = normalized_score
+
+    return parsed
+
+
+def _parse_json_variants(text: str, keys: set[str]) -> Optional[dict]:
+    if not text:
+        return None
+
+    base = _strip_control_chars(text).strip()
+    base = _replace_smart_quotes(base)
+    fixed = _fix_json_text(base)
+    escaped = _escape_unescaped_newlines(fixed)
+    quoted = _quote_known_keys(escaped, keys)
+
+    candidates = [base, fixed, escaped, quoted]
+    for candidate in candidates:
+        parsed = _try_parse_json(candidate)
+        if parsed is not None:
+            return parsed
+
+    py_candidate = quoted
+    py_candidate = re.sub(r"\bnull\b", "None", py_candidate, flags=re.IGNORECASE)
+    py_candidate = re.sub(r"\btrue\b", "True", py_candidate, flags=re.IGNORECASE)
+    py_candidate = re.sub(r"\bfalse\b", "False", py_candidate, flags=re.IGNORECASE)
+    try:
+        parsed = ast.literal_eval(py_candidate)
+    except Exception:
+        return None
+    if isinstance(parsed, dict):
+        return parsed
+    if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+        return parsed[0]
+    return None
+
+
+def _extract_value_block(text: str, start: int) -> tuple[Optional[str], int]:
+    length = len(text)
+    i = start
+    while i < length and text[i].isspace():
+        i += 1
+    if i >= length:
+        return None, i
+
+    ch = text[i]
+    if ch in ('"', "'"):
+        quote_char = ch
+        i += 1
+        out = []
+        escaped = False
+        while i < length:
+            cur = text[i]
+            if escaped:
+                out.append(cur)
+                escaped = False
+            elif cur == "\\":
+                escaped = True
+            elif cur == quote_char:
+                i += 1
+                break
+            else:
+                out.append(cur)
+            i += 1
+        return "".join(out).strip(), i
+
+    if ch == "[":
+        depth = 0
+        out = []
+        while i < length:
+            cur = text[i]
+            if cur == "[":
+                depth += 1
+            elif cur == "]":
+                depth -= 1
+                out.append(cur)
+                i += 1
+                if depth <= 0:
+                    break
+                continue
+            out.append(cur)
+            i += 1
+        return "".join(out).strip(), i
+
+    if ch == "{":
+        depth = 0
+        out = []
+        while i < length:
+            cur = text[i]
+            if cur == "{":
+                depth += 1
+            elif cur == "}":
+                depth -= 1
+                out.append(cur)
+                i += 1
+                if depth <= 0:
+                    break
+                continue
+            out.append(cur)
+            i += 1
+        return "".join(out).strip(), i
+
+    end = text.find("\n", i)
+    if end == -1:
+        end = length
+    return text[i:end].strip(), end
+
+
+def _fallback_extract_fields(text: str, template: List[Dict[str, str]]) -> Optional[dict]:
+    if not text:
+        return None
+
+    keys = ["title_cn", "score", "tags"] + [item["key"] for item in template]
+    data: dict = {}
+    analysis: dict = {}
+    lower = text.lower()
+
+    for key in keys:
+        pattern = rf"{re.escape(key.lower())}\s*[:：]"
+        match = re.search(pattern, lower)
+        if not match:
+            continue
+        value, _ = _extract_value_block(text, match.end())
+        if value is None:
+            continue
+        if key == "score":
+            normalized_score = _normalize_score(value)
+            if normalized_score is not None:
+                data["score"] = normalized_score
+            continue
+        if key == "tags":
+            data["tags"] = _normalize_tags(value)
+            continue
+        if key == "title_cn":
+            data["title_cn"] = value.strip().strip('"')
+            continue
+        analysis[key] = value.strip()
+
+    if analysis:
+        data["analysis"] = analysis
+
+    return data or None
+
+def parse_llm_response(response: str, template: Optional[List[Dict[str, str]]] = None) -> Optional[dict]:
     """解析 LLM 返回的 JSON"""
     if not response:
         return None
@@ -427,16 +743,19 @@ def parse_llm_response(response: str) -> Optional[dict]:
     response = response.strip()
 
     # 尝试直接解析
+    if template is None:
+        template = load_template()
+
     parsed = _try_parse_json(response)
     if parsed is not None:
-        return parsed
+        return _normalize_analysis_dict(parsed, template)
 
     # 尝试提取 ```json ... ``` 代码块
     json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", response)
     if json_match:
         parsed = _try_parse_json(json_match.group(1))
         if parsed is not None:
-            return parsed
+            return _normalize_analysis_dict(parsed, template)
 
     # 尝试找到最外层的 { } 块（贪婪匹配）
     brace_match = re.search(r"{[\s\S]*}", response)
@@ -444,7 +763,7 @@ def parse_llm_response(response: str) -> Optional[dict]:
         json_str = brace_match.group(0)
         parsed = _try_parse_json(json_str)
         if parsed is not None:
-            return parsed
+            return _normalize_analysis_dict(parsed, template)
 
     # 最后尝试：逐行解析，找到有效 JSON
     lines = response.split("\n")
@@ -464,7 +783,28 @@ def parse_llm_response(response: str) -> Optional[dict]:
     if json_lines:
         parsed = _try_parse_json("\n".join(json_lines))
         if parsed is not None:
-            return parsed
+            return _normalize_analysis_dict(parsed, template)
+
+    # 兜底解析：修复非严格 JSON，再尝试解析
+    candidates = [response]
+    if json_match:
+        candidates.append(json_match.group(1))
+    if brace_match:
+        candidates.append(brace_match.group(0))
+    if json_lines:
+        candidates.append("\n".join(json_lines))
+
+    known_keys = {"title_cn", "score", "tags", "analysis"}
+    known_keys.update(item["key"] for item in template)
+    for candidate in candidates:
+        parsed = _parse_json_variants(candidate, known_keys)
+        if parsed is not None:
+            return _normalize_analysis_dict(parsed, template)
+
+    # 最后兜底：按字段提取
+    extracted = _fallback_extract_fields(response, template)
+    if extracted:
+        return _normalize_analysis_dict(extracted, template)
 
     logger.warning(f"无法解析 LLM 响应: {response[:200]}...")
     return None
@@ -1031,7 +1371,7 @@ def analyze_paper(paper: dict, template: List[Dict[str, str]] = None) -> dict:
     )
 
     response = call_llm(prompt)
-    analysis = parse_llm_response(response)
+    analysis = parse_llm_response(response, template=template)
 
     if analysis:
         # 合并原始信息和分析结果

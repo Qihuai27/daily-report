@@ -6,7 +6,7 @@ import logging
 import asyncio
 import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -248,10 +248,13 @@ scheduler = BackgroundScheduler()
 
 def daily_job():
     logger.info("Triggering daily automatic brief generation")
+    today = datetime.now().date()
     req = FetchRequest(
         queries=config.DAILY_QUERIES,
         max_results=config.DAILY_MAX_RESULTS,
         use_llm=config.DAILY_USE_LLM,
+        date_from=(today - timedelta(days=2)).strftime("%Y-%m-%d"),
+        date_to=today.strftime("%Y-%m-%d"),
     )
     run_fetch_task(req)
 
