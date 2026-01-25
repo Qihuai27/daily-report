@@ -17,6 +17,8 @@
     }
   ],
   "keyword_library": [
+    "LLM",
+    "ViT"
     "RoPE",
     "Transformer",
     "Out of Distribution",
@@ -34,6 +36,8 @@
     "Diffusion Language Model"
   ],
   "keyword_last_queries": [
+    "LLM",
+    "ViT"
     "Diffusion Language Model"
   ],
   "keyword_template_id": "title_abs_and"
