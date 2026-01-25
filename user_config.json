@@ -17,12 +17,24 @@
     }
   ],
   "keyword_library": [
-    "SCM",
-    "Casual"
+    "RoPE",
+    "Transformer",
+    "Out of Distribution",
+    "OOD",
+    "generalization",
+    "visual",
+    "DAG",
+    "Casual",
+    "Casual Structure",
+    "LLM",
+    "VLM",
+    "Counterfact",
+    "Counterfactual",
+    "Diffusion LLM; Sampling",
+    "Diffusion Language Model"
   ],
   "keyword_last_queries": [
-    "SCM",
-    "Casual"
+    "Diffusion Language Model"
   ],
   "keyword_template_id": "title_abs_and"
 }

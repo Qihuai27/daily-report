@@ -1370,8 +1370,24 @@ def analyze_paper(paper: dict, template: List[Dict[str, str]] = None) -> dict:
         body_text=body_text,
     )
 
-    response = call_llm(prompt)
-    analysis = parse_llm_response(response, template=template)
+    max_retries = max(0, config.LLM_MAX_RETRIES)
+    retry_delay = max(0.0, config.LLM_RETRY_DELAY)
+    analysis = None
+    response = None
+
+    for attempt in range(max_retries + 1):
+        response = call_llm(prompt)
+        analysis = parse_llm_response(response, template=template)
+        if analysis:
+            if attempt > 0:
+                logger.info(f"解析成功（重试 {attempt}/{max_retries}）: {paper['arxiv_id']}")
+            break
+        if attempt < max_retries:
+            reason = "返回为空" if not response else "解析失败"
+            remaining = max_retries - attempt
+            logger.warning(f"LLM {reason}，准备重试 (剩余 {remaining} 次): {paper['arxiv_id']}")
+            if retry_delay > 0:
+                time.sleep(retry_delay * (attempt + 1))
 
     if analysis:
         # 合并原始信息和分析结果

@@ -55,6 +55,12 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
+# ---------- LLM 调用重试 ----------
+# 额外重试次数（不含首次调用），用于缓解偶发解析失败
+LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "2"))
+# 重试间隔（秒），将按次数线性递增
+LLM_RETRY_DELAY = float(os.getenv("LLM_RETRY_DELAY", "2.0"))
+
 # ---------- Anthropic (Claude) ----------
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
